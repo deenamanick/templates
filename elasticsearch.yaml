@@ -1,0 +1,27 @@
+namespace: /elk/base
+
+elasticsearch:
+  defines: runnable
+  containers:
+    defines: containers
+    elasticsearch:
+      image: docker.elastic.co/elasticsearch/elasticsearch
+      image-tag: "7.9.0"
+      ports:
+        - <- `${port}:${port}`
+        - <- `${internal-port}:${internal-port}`
+      environment:
+        - 'discovery.type=single-node'
+        - <- `ES_JAVA_OPTS=${jvm-options}`
+
+  variables:
+    defines: variables
+    port:
+      type: int
+      value: 9200
+    internal-port:
+      type: int
+      value: 9300
+    jvm-options:
+      type: string
+      value: -Xmx256m -Xms256m

@@ -1,0 +1,49 @@
+namespace: /grafana
+
+common:
+  metadata:
+    defines: metadata
+    name: Grafana
+    description: Grafana is the open source analytics & monitoring solution for every database.
+    tags: analytics, monitoring, logging
+    website: https://www.grafana.com/
+    source: https://github.com/grafana/grafana
+    publisher: "monk.io"
+    icon: https://assets.monk.io/icons/grafana_logo_swirl-events.svg
+    email: maciej@monk.io
+  containers:
+    defines: containers
+    grafana:
+      image: grafana/grafana
+      image-tag: <- `${image-tag}`
+      ports:
+        - "3000:3000"
+      environment:
+        - <- `GF_SECURITY_ADMIN_USER=${admin-user}`
+        - <- `GF_SECURITY_ADMIN_PASSWORD=${admin-password}`
+        - <- `GF_INSTALL_PLUGINS=${plugins}`
+      paths:
+        - <- `${monk-volume-path}/grafana/data:/var/lib/grafana`
+        - <- `${monk-volume-path}/grafana/provisioning:/etc/grafana/provisioning`
+        - <- `${monk-volume-path}/grafana/dashboards:/var/lib/grafana/dashboards`
+  variables:
+    defines: variables
+    image-tag:
+      type: string
+      value: latest
+    admin-user:
+      type: string
+      value: admin
+    admin-password:
+      type: string
+      value: admin
+    plugins:
+      type: string
+      value: grafana-clock-panel,grafana-simple-json-datasource
+
+latest:
+  defines: runnable
+  version: latest
+  inherits: ./common
+  variables:
+    image-tag: latest

@@ -1,0 +1,14 @@
+namespace: /fake-smtp
+
+latest:
+  defines: runnable
+  version: latest
+  containers:
+    defines: containers
+    fake-smtp:
+      image: docker.io/ajigile/fake-smtp-server
+      image-tag: latest
+      ports:
+        - 0.0.0.0:2525:2525
+        - 0.0.0.0:5080:5080/tcp
+        - 0.0.0.0:5081:5081/tcp

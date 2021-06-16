@@ -1,0 +1,214 @@
+namespace: /kafka
+
+zookeeper-common:
+  defines: runnable
+  version: 5.5.0
+  containers:
+    defines: containers
+    zookeeper:
+      image: confluentinc/cp-zookeeper
+      image-tag: 5.5.0
+      ports:
+        - <- `0.0.0.0:${zookeeper-port}:2181`
+      environment:
+        - <- `ZOOKEEPER_CLIENT_PORT=${zookeeper-port}`
+        - <- `ZOOKEEPER_TICK_TIME=${zookeeper-tick-time}`
+  variables:
+    defines: variables
+    zookeeper-port:
+      type: int
+      value: 2181
+    zookeeper-tick-time:
+      type: int 
+      value: 2000
+
+kafka-broker-common:
+  defines: runnable
+  version: 5.0.1-1
+  containers:
+    defines: containers
+    kafka-broker:
+      image: confluentinc/cp-kafka
+      image-tag: 5.0.1-1 #5.5.0
+      ports:
+        - <- `0.0.0.0:${broker-port}:${broker-port}`
+        - <- `0.0.0.0:${broker-internal-port}:${broker-internal-port}`
+      environment:
+        - <- `KAFKA_BROKER_ID=${broker-id}`
+        - <- `KAFKA_ZOOKEEPER_CONNECT=${zookeeper-host-name}:${zookeeper-port}`
+        - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+        - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+        - <- `KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://${broker-internal-host-name}:${broker-internal-port},PLAINTEXT_HOST://localhost:${broker-port}`
+        - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
+        - KAFKA_CONFLUENT_SUPPORT_METRICS_ENABLE=false
+        - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+        - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1
+        - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
+        - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=100
+        - KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR=1
+        - <- `CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS=${broker-internal-host-name}:${broker-internal-port}`
+        - <- `CONFLUENT_METRICS_REPORTER_ZOOKEEPER_CONNECT=${zookeeper-host-name}:${zookeeper-port}`
+        - CONFLUENT_METRICS_REPORTER_TOPIC_REPLICAS=1
+        - CONFLUENT_METRICS_ENABLE=false
+        - CONFLUENT_SUPPORT_CUSTOMER_ID=anonymous
+  variables:
+    defines: variables
+    broker-id:
+      type: int
+      value: 1
+    broker-port:
+      type: int
+      value: 9092
+    broker-internal-host-name:
+      type: string
+      value: ""
+    broker-internal-port:
+      type: int
+      value: 29092
+    zookeeper-host-name:
+      type: string
+      value: ""
+    zookeeper-port:
+      type: int
+      value: 2181
+
+schema-registry-common:
+  defines: runnable
+  containers:
+    defines: containers
+    schema-registry:
+      image: confluentinc/cp-schema-registry
+      image-tag: 5.5.0
+      ports:
+        - <- `0.0.0.0:${schema-port}:8081`
+      environment:
+        - <- `SCHEMA_REGISTRY_HOST_NAME=${schema-host-name}`
+        - <- `SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL=${zookeeper-host-name}`
+        - <- `SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS=PLAINTEXT://${bootstrap-brokers}`
+        - <- `SCHEMA_REGISTRY_LISTENERS=http://0.0.0.0:${schema-port}`
+  variables:
+    defines: variables
+    schema-port:
+      type: int
+      value: 8081
+    schema-host-name:
+      type: string
+      value: "schema"
+    zookeeper-host-name:
+      type: string
+      value: ""
+    bootstrap-broker-host-1:
+      type: string
+      value: ""
+    bootstrap-broker-port-1:
+      type: int
+      value: 0
+    bootstrap-broker-host-2:
+      type: string
+      value: ""
+    bootstrap-broker-port-2:
+      type: int
+      value: 0
+    bootstrap-broker-host-3:
+      type: string
+      value: ""
+    bootstrap-broker-port-3:
+      type: int
+      value: 0
+    bootstrap-brokers:
+      type: string
+      value: <-`${bootstrap-broker-host-1}:${bootstrap-broker-port-1}` #,${bootstrap-broker-host-2}:${bootstrap-broker-port-2},${bootstrap-broker-host-3}:${bootstrap-broker-port-3}`
+
+schema-registry-ui-common:
+  defines: runnable
+  containers:
+    defines: containers
+    schema-registry-ui:
+      image: landoop/schema-registry-ui
+      image-tag: 0.9.4
+      ports:
+        - <- `0.0.0.0:8001:8000`
+      environment:
+        - <- `SCHEMAREGISTRY_URL=http://${schema-host-name}:${schema-port}/`
+        - PROXY="true"
+  variables:
+    defines: variables
+    schema-host-name:
+      type: string
+      value: ""
+    schema-port:
+      type: int
+      value: 8081
+
+rest-proxy-common:
+  defines: runnable
+  containers:
+    defines: containers
+    rest-proxy:
+      image: confluentinc/cp-kafka-rest
+      image-tag: 5.5.0
+      ports:
+        - <- `0.0.0.0:${proxy-port}:8082`       
+      environment:
+        - <- `KAFKA_REST_LISTENERS=http://0.0.0.0:${proxy-port}`
+        - <- `KAFKA_REST_SCHEMA_REGISTRY_URL=http://${schema-host-name}:${schema-port}`
+        - <- `KAFKA_REST_HOST_NAME=${proxy-host-name}`
+        - <- `KAFKA_REST_BOOTSTRAP_SERVERS=PLAINTEXT://${bootstrap-brokers}`
+  variables:
+    defines: variables
+    proxy-host-name:
+      type: string
+      value: "proxy"
+    proxy-port:
+      type: int
+      value: 8082
+    schema-host-name:
+      type: string
+      value: ""
+    schema-port:
+      type: int
+      value: 8081
+    bootstrap-broker-host-1:
+      type: string
+      value: ""
+    bootstrap-broker-port-1:
+      type: int
+      value: 0
+    bootstrap-broker-host-2:
+      type: string
+      value: ""
+    bootstrap-broker-port-2:
+      type: int
+      value: 0
+    bootstrap-broker-host-3:
+      type: string
+      value: ""
+    bootstrap-broker-port-3:
+      type: int
+      value: 0
+    bootstrap-brokers:
+      type: string
+      value: <-`${bootstrap-broker-host-1}:${bootstrap-broker-port-1}` #,${bootstrap-broker-host-2}:${bootstrap-broker-port-2},${bootstrap-broker-host-3}:${bootstrap-broker-port-3}`
+
+kafka-topics-ui-common:
+  defines: runnable
+  containers:
+    defines: containers
+    kafka-topics-ui:
+      image: landoop/kafka-topics-ui
+      image-tag: 0.9.4
+      ports:
+        - <- `0.0.0.0:${topics-ui-port}:8000`  
+      environment:
+        - <- `KAFKA_REST_PROXY_URL=http://${proxy-host-name}:{proxy-port}/`
+        - PROXY="true"
+  variables:
+    proxy-host-name:
+      type: string
+      value: ""
+    proxy-port:
+      type: int
+      value: 8082
+    topics-ui-port:
+      type: int
+      value: 8000

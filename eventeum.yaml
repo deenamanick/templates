@@ -1,0 +1,64 @@
+namespace: /eventeum
+
+eventeum-1:
+  defines: runnable
+  containers:
+    defines: containers
+    eventeum:
+      image: whitenoi5/eventeum:latest
+      ports:
+        - 0.0.0.0:8060:8060
+      environment:
+        - <- `SPRING_DATA_MONGODB_HOST=${mongodb-host}`
+        - <- `ETHEREUM_NODE_URL=https://mainnet.infura.io/v3/a2bdcdbe203942249f08666b4f225680` #http://${ethereum-host}:8545`
+        - <- `ZOOKEEPER_ADDRESS=${zookeeper-host}:2181`
+        - <- `KAFKA_ADDRESSES=${kafka-host}:19092`
+  variables:
+    defines: variables
+    mongodb-host:
+      type: string
+      value: <- get-hostname("eventeum/mongodb-1", "mongodb")
+    ethereum-host:
+      type: string
+      value: <- get-hostname("eventeum/hardhat-1", "hardhat")
+    zookeeper-host:
+      type: string
+      value: <- get-hostname("eventeum/zookeeper-1", "zookeeper")
+    kafka-host:
+      type: string
+      value: <- get-hostname("eventeum/kafka-1", "kafka-broker")
+
+hardhat-1:
+  defines: runnable
+  inherits: hardhat/latest
+      
+mongodb-1:
+  defines: runnable
+  containers:
+    defines: containers
+    mongodb:
+      image: mongo:latest
+      ports:
+        - 0.0.0.0:27017:27017
+
+zookeeper-1:
+  defines: runnable
+  inherits: kafka/zookeeper-common
+
+kafka-1:
+  defines: runnable
+  inherits: kafka/kafka-broker-common
+  variables:
+    broker-id: 1
+    broker-port: 9092
+    zookeeper-host-name: <- get-hostname("eventeum/zookeeper-1", "zookeeper")
+    broker-internal-port: 19092
+
+stack:
+  defines: process-group
+  runnable-list:
+    - /eventeum/eventeum-1
+    - /eventeum/hardhat-1
+    - /eventeum/mongodb-1
+    - /eventeum/zookeeper-1
+    - /eventeum/kafka-1

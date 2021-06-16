@@ -1,0 +1,413 @@
+namespace: /icon
+
+common:
+  metadata:
+    defines: metadata
+    name: ICON
+    description: ICON is a connector of disparate cryptocurrencies with different blockchain governances, and furthermore, a connector of the crypto world to our real world. ICON embraces the new and the unfamiliar, the principle of radical inclusion – accept new ideas and decisions made by the new republic established by ever-changing crypto-to-real world connections.
+    tags: blockchain
+    currency: ICX
+    icon: icon.png
+    website: https://icon.foundation/
+    source: https://github.com/icon-project
+    publisher: "monk.io"
+    white-paper: http://docs.icon.foundation/ICON-Whitepaper-EN-Draft.pdf
+    twitter: https://twitter.com/helloiconworld
+    facebook: https://www.facebook.com/helloicon/
+    reddit: https://www.reddit.com/r/helloicon/
+    telegram: https://t.me/hello_iconworld
+    network-name: "mainnet"
+    node-type: "full"
+    consensus-type: "Loop Fault Tolerance"
+  
+  requirements:
+      defines: requirements
+      CPU: "4 Cores"
+      RAM: 2048
+      GPU: false
+      disk: 256000
+  
+  containers:
+    defines: containers
+    icon-node:
+      image: docker.io/oaknode/icon
+      ports:
+       - <- `${host}:${p2p-port}:9000`
+       - <- `${host}:${rpc-port}:7100`
+      paths:
+        - <- `${volume-data}-prep:/data`
+        - <- `${volume-keys}-prep:/cert`
+      cap-add:
+        - SYS_TIME
+      environment:
+        - CERT_PATH=/cert
+        # - SWITCH_BH_VERSION3="10324749"
+        - LOOPCHAIN_LOG_LEVEL=DEBUG
+        - FASTEST_START=yes
+        - <- `NETWORK_ENV=${network}`
+        - <- `PRIVATE_PASSWORD=${password}`
+        - PRIVATE_KEY_FILENAME=keystore.json
+        - <- `ENDPOINT_URL=${endpoint_url}`
+        - <- `SERVICE_API=${endpoint_url}/api/v3`
+
+  variables:
+    defines: variables
+    network:
+      type: string
+      value: mainnet
+
+    volume-data:
+      type: string
+      value: <- `${moncc-volume-path}/icon/data`
+
+    volume-keys:
+      type: string
+      value: <- `${moncc-volume-path}/icon/keys`
+
+    p2p-port:
+      type: int
+      value: 9000
+
+    endpoint_url:
+      type: string
+      value: https://zicon.net.solidwallet.io
+
+    rpc-port:
+      type: int
+      value: 7100
+
+    host:
+      type: string
+      value: "0.0.0.0"
+
+    password:
+      type: string
+      value: ""
+      ask: true
+      description: "Password (from 16 to 32 chars)"
+      check-min: 8
+      check-max: 32
+
+prep-mainnet:
+  defines: runnable 
+  inherits: ./mainnet
+  actions:
+    defines: actions
+    register:
+      description: Registers the P-Rep.
+      arguments: 
+        name:
+          type: string
+          description: P-Rep node's name.
+        country:
+          type: string
+          description: P-Rep node's country (alpha-3 code).
+        city:
+          type: string
+          description: P-Rep node's city.
+        email:
+          type: string
+          description: P-Rep node's email.
+        website:
+          type: string
+          description: P-Rep node's website.
+        details:
+          type: string
+          description: P-Rep node's details.
+        p2p-endpoint:
+          type: string
+          description: P-Rep node's p2p endpoint address.
+        url:
+          type: string
+          description: P-Rep node for communication
+          default: "https://ctz.solidwallet.io/api/v3"
+        nid:
+          type: int
+          default: 1
+      code: exec("icon-node", "/bin/bash", "-c", `preptools registerPRep --url="${args["url"]}" --p2p-endpoint="${args["p2p-endpoint"]}" --nid=${args["nid"]} --keystore /cert/keystore.json --name="${args["name"]}" --country="${args["country"]}" --city="${args["city"]}" --email="${args["email"]}" --website="${args["website"]}" --details="${args["details"]}" -p $PRIVATE_PASSWORD <<< "Y\n"`)
+
+    set:
+      description: Update the P-Rep.
+      arguments: 
+        name:
+          type: string
+          description: P-Rep node's name.
+        country:
+          type: string
+          description: P-Rep node's country (alpha-3 code).
+        city:
+          type: string
+          description: P-Rep node's city.
+        email:
+          type: string
+          description: P-Rep node's email.
+        website:
+          type: string
+          description: P-Rep node's website.
+        details:
+          type: string
+          description: P-Rep node's details.
+        p2p-endpoint:
+          type: string
+          description: P-Rep node's p2p endpoint address.
+        url:
+          type: string
+          description: P-Rep node for communication
+          default: "https://ctz.solidwallet.io/api/v3"
+        nid:
+          type: int
+          default: 1
+      code: exec("icon-node", "/bin/bash", "-c", `preptools setPRep --url="${args["url"]}" --p2p-endpoint="${args["p2p-endpoint"]}" --nid ${args["nid"]} --keystore /cert/keystore.json --name="${args["name"]}" --country="${args["country"]}" --city="${args["city"]}" --email="${args["email"]}" --website="${args["website"]}" --details="${args["details"]}" -p $PRIVATE_PASSWORD <<< "Y\n"`)
+
+    unregister:
+      description: Registers the P-Rep.
+      arguments:
+        nid:
+          type: int
+          default: 1
+        url:
+          type: string
+          description: P-Rep node for communication
+          default: "https://ctz.solidwallet.io/api/v3"
+      code: exec("icon-node", "/bin/bash", "-c", `preptools unregisterPRep --url="${args["url"]}" --nid ${args["nid"]} --keystore /cert/keystore.json -p $PRIVATE_PASSWORD <<< "Y\n"`)
+
+    setGovernanceVariables:
+      description: Setup Governance Variables
+      arguments:
+        url:
+          type: string
+          description: P-Rep node for communication
+          default: "https://ctz.solidwallet.io/api/v3"
+        nid:
+          type: int
+          default: 1
+        i-rep:
+          type: int
+          default: 50000000000000000000000
+      code: exec("icon-node", "/bin/bash", "-c", `preptools setGovernanceVariables --irep="${args["i-rep"]}" --url="${args["url"]}" --nid ${args["nid"]} --keystore /cert/keystore.json -p $PRIVATE_PASSWORD <<< "Y\n"`)
+
+    get-key:
+      description: Get user key
+      arguments: {}
+      code: exec("icon-node", "/bin/bash", "-c", `cat /cert/keystore.json`)
+
+    health:
+      description: Check health
+      arguments: {}
+      code: exec("icon-node", "/bin/bash", "-c", `health_http_code=$(curl --write-out "%{http_code}" --silent --output /dev/null http://localhost:9000/api/v1/status/peer); if [[ "$health_http_code" -ne 200 ]] ; then echo "false"; else echo "true"; fi`)
+
+  files:
+    defines: files
+    keystore:
+      path: /cert/keystore.json
+      container: icon-node
+      pass-empty: true
+      raw: true
+      contents: <- $prep-keystore
+
+  variables:
+    defines: variables
+
+    prep-keystore:
+      type: string
+      value: " " # Leave available to setup empty.
+      ask: true
+      description: The keystore.json file with the account for the P-Rep node.
+
+    endpoint_url:
+      type: string
+      value: https://ctz.solidwallet.io
+
+nginx-prep-mainnet:
+  defines: runnable
+  containers:
+    defines: containers
+    nginx_throttle:
+      image: looploy/nginx
+      image-tag: 1.17.1
+      paths:
+        - <- `${volume-data}-prep-nginx-conf:/etc/nginx/user_conf`
+        - <- `${volume-data}-prep-nginx-log:/var/log/nginx`
+      ports:
+        - <- `0.0.0.0:${p2p-port}:9000`
+        - <- `0.0.0.0:${rpc-port}:7100`
+      environment:
+        - NGINX_RATE_LIMIT=200r/s
+        - <- `NODE_CONTAINER_NAME=${icon-container}`
+        - NGINX_LOG_OUTPUT=file
+        - NGINX_LOG_TYPE=main'
+        - NGINX_USER=root
+        - VIEW_CONFIG=yes
+        - USE_NGINX_THROTTLE=yes
+        - NGINX_THROTTLE_BY_URI=yes
+        - NGINX_BURST=5
+        - NGINX_SET_NODELAY=no
+        - GRPC_PROXY_MODE=yes
+        - USE_VTS_STATUS=yes
+        - SET_REAL_IP_FROM=0.0.0.0/0
+        - PREP_MODE=yes
+        - PREP_NGINX_ALLOWIP=yes
+        - NGINX_ALLOW_IP=0.0.0.0/0
+        #- NGINX_LOG_FORMAT="$$realip_remote_addr $$remote_addr  $$remote_user [$$time_local] $$request $$status $$body_bytes_sent $$http_referer "$$http_user_agent" $$http_x_forwarded_for $$request_body"
+      # bash: "./run.sh && sleep 10s"
+
+  variables:
+    defines: variables
+    nginx-rate-limit:
+      type: string
+      value: "200r/s"
+
+    icon-container:
+      type: string
+      value: "icon_prep-mainnet_icon_node"
+
+    p2p-port:
+      type: int
+      value: 9000
+
+    rpc-port:
+      type: int
+      value: 7100
+
+    volume-data:
+      type: string
+      value: <- `${moncc-volume-path}/icon/data`
+
+prep-testnet:
+  defines: runnable
+  inherits: ./prep-mainnet
+  variables:
+    network:
+      value: "testnet"
+    prep-url:
+      type: string
+      value: "https://zicon.net.solidwallet.io"
+
+nginx-mainnet:
+  defines: runnable
+  inherits: ./nginx-prep-mainnet
+  variables:
+    icon-container:
+      type: string
+      value: "icon_mainnet_icon_node"
+
+mainnet:
+  defines: runnable
+  inherits: ./latest
+  variables:
+    network:
+      value: mainnet
+    endpoint_url:
+      value: https://ctz.solidwallet.io
+
+testnet:
+  defines: runnable
+  inherits: ./latest
+  metadata:
+    network-name: "testnet"
+  variables:
+    network:
+      value: testnet
+
+latest:
+  defines: runnable
+  inherits: ./2008032356xc7087e
+
+1910261021xc97f33AA:
+  defines: runnable
+  inherits: ./common
+  version: 1910261021xc97f33AA
+  containers:
+    icon-node:
+      image-tag: 1910261021xc97f33AA
+
+1912090356xb1e1fe:
+  defines: runnable
+  inherits: ./common
+  version: 1912090356xb1e1fe
+  containers:
+    icon-node:
+      image-tag: 1912090356xb1e1fe
+
+2001091813x7eba36:
+  defines: runnable
+  inherits: ./common
+  version: 2001091813x7eba36
+  containers:
+    icon-node:
+      image-tag: 2001091813x7eba36
+
+2004011830xf66922:
+  defines: runnable
+  inherits: ./common
+  version: 2004011830xf66922
+  containers:
+    icon-node:
+      image-tag: 2004011830xf66922
+
+2004011830xf66922-hotfix:
+  defines: runnable
+  inherits: ./common
+  version: 2004011830xf66922-hotfix
+  containers:
+    icon-node:
+      image-tag: 2004011830xf66922-hotfix
+
+2008032356xc7087e:
+  defines: runnable
+  inherits: ./common
+  version: 2008032356xc7087e
+  containers:
+    icon-node:
+      image-tag: 2008032356xc7087e
+
+mainnet-citizen-proxy:
+  defines: runnable
+  inherits: ./prep-mainnet
+  containers:
+    icon-node:
+      image: iconloop/prep-node
+      image-tag: 1911121115x323d60-dev
+  variables:
+    network:
+      value: "testnet"
+    prep-url:
+      type: string
+      value: <- `search-container("icon/nginx-prep-mainnet", "icon-node");`
+
+nginx-mainnet-citizen-proxy:
+  defines: runnable
+  inherits: ./nginx-prep-mainnet
+  variables:
+    icon-container:
+      type: string
+      value: "icon_mainnet-citizen-proxy_icon_node"
+
+
+nginx-p-rep-group:
+  defines: process-group
+  runnable-list:
+    - icon/prep-mainnet
+    - icon/nginx-prep-mainnet
+
+nginx-citizen-group:
+  defines: process-group
+  runnable-list:
+    - icon/mainnet
+    - icon/nginx-mainnet
+
+nginx-citizen-p-rep-group:
+  defines: process-group
+  runnable-list:
+    - icon/prep-mainnet
+    - icon/nginx-prep-mainnet
+    - icon/mainnet-citizen-proxy
+    - icon/nginx-mainnet-citizen-proxy
+
+ha-p-rep-group:
+  defines: process-group
+  runnable-list:
+    - icon/prep-mainnet
+    - icon/nginx-prep-mainnet
+    - icon/prep-mainnet
+    - icon/nginx-prep-mainnet

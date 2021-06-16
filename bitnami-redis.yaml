@@ -1,0 +1,38 @@
+namespace: /bitnami-redis
+
+redis-no-pwd:
+  defines: runnable
+  metadata:
+    defines: metadata
+    name: Redis
+    description: Redis is an in-memory database that persists on disk.
+    website: https://redis.io
+    source: https://github.com/redis/redis
+    publisher: "monk.io"
+    icon: https://assets.monk.io/icons/png-transparent-redis-in-memory-database-key-value-database-cache-speech-miscellaneous-logo-data.png
+    email: maciej@monk.io
+  containers:
+    defines: containers
+    redis:
+      image: docker.io/bitnami/redis
+      image-tag: <- `${image-tag}`
+      environment:
+        - <- `ALLOW_EMPTY_PASSWORD=${empty_password}`
+      ports:
+        - 0.0.0.0:6379:6379/tcp
+      paths:
+        - <- `${moncc-volume-path}/redis:/bitnami/redis/data`
+  variables:
+    defines: variables
+    empty_password:
+      type: string
+      value: yes
+    image-tag:
+      type: string
+      value: 6.0-debian-10
+
+
+6.0-debian-10-no-pwd:
+  defines: runnable
+  version: 6.0-debian-10 
+  inherits: ./redis-no-pwd

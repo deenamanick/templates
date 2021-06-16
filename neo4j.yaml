@@ -1,0 +1,22 @@
+namespace: /neo4j
+
+app:
+  defines: runnable
+  version: latest
+  metadata:
+    defines: metadata
+    name: Neo4j
+    description: Neo4j is the graph database platform powering mission-critical enterprise applications like artificial intelligence, fraud detection and recommendations.
+    tags: graph, database
+    publisher: "monk.io"
+    icon: https://assets.monk.io/icons/neo4j_logo_globe.png
+    email: maciej@monk.io
+  containers:
+    defines: containers
+    neo4j:
+      image: docker.io/neo4j:latest
+      ports:
+        - "7474:7474"
+        - "7687:7687"
+      paths:
+        - <- `/home/ubuntu/neo4j/data:/data`

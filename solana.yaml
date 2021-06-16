@@ -1,0 +1,79 @@
+namespace: /solana
+common:
+  metadata:
+    defines: metadata
+    name: Solana
+    description: Solana is the name of an open source project that is implementing a new, high-performance, permissionless blockchain. Solana is also the name of a company headquartered in San Francisco that maintains the open source project.
+    tags: blockchain
+    currency: Solana
+    icon: solana.png
+    website: https://solana.com
+    source: https://github.com/solana-labs
+    publisher: "monk.io"
+    white-paper: https://solana.com/solana-whitepaper.pdf
+    twitter: https://twitter.com/solanalabs
+    reddit: https://www.reddit.com/r/solana
+    telegram: https://t.me/solanaio
+    network-name: "testnet"
+    node-type: "full"
+    consensus-type: "Proof of Stake"
+
+  containers:
+    defines: containers
+    solana-node:
+      image: docker.io/solanalabs/solana
+      ports:
+        - <- `${host}:${validator-ports}:${validator-ports}` # TODO: validator ports error
+        # - <- `${host}:${rpc-port}:${rpc-port}/tcp`
+      paths:
+        - <- `${volume-data}:/config/`
+      # TODO: pass host address to service
+
+  variables:
+    defines: variables
+
+    volume-data:
+      type: string
+      value: <- `${moncc-volume-path}/solana`
+
+    # rpc-port:
+    #   type: string
+    #   value: "8899"
+
+    validator-ports:
+      type: string
+      value: "8500-9000"
+
+    host:
+      type: string
+      value: "0.0.0.0"
+
+beta:
+  defines: runnable
+  inherits: ./common
+  metadata:
+    network-name: "testnet-beta"
+  version: beta
+  containers:
+    solana-node:
+      image-tag: beta
+
+edge:
+  defines: runnable
+  inherits: ./common
+  metadata:
+    network-name: "testnet-edge"
+  version: edge
+  containers:
+    solana-node:
+      image-tag: edge
+
+stable:
+  defines: runnable
+  inherits: ./common
+  metadata:
+    network-name: "testnet-stable"
+  version: stable
+  containers:
+    solana-node:
+      image-tag: stable

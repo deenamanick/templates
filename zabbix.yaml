@@ -1,0 +1,121 @@
+namespace: /zabbix
+
+common:
+  metadata:
+    defines: metadata
+    name: Zabbix
+    description: Real-time monitoring of IT components and services, such as networks, servers, VMs, applications and the cloud. 
+    tags: logging, monitoring
+    website: https://www.zabbix.com/
+    source: https://github.com/zabbix/zabbix
+    publisher: "monk.io"
+    icon: https://assets.monk.io/icons/zabbix_logo.png
+    email: maciej@monk.io
+
+mysql:
+  defines: runnable
+  inherits: /mysql/v5.7
+  containers:
+    mysql:
+      environment:
+        - <- `MYSQL_ROOT_PASSWORD=@azerty123!!`
+        - <- `MYSQL_DATABASE=zabbix`
+        - <- `MYSQL_USER=zabbix`
+        - <- `MYSQL_PASSWORD=@azerty123!!`
+      
+zabbix-server:
+  defines: runnable
+  inherits: ./common
+  containers:
+    defines: containers
+    zabbix-server:
+      image: zabbix/zabbix-server-mysql:ubuntu-5.0.1
+      ports:
+        - '10051:10051'
+      paths:
+        - <- `/zabbix/alertscripts:/usr/lib/zabbix/alertscripts`
+      environment:
+        - <- `DB_SERVER_HOS=mysql`
+        - <- `MYSQL_DATABASE=zabbix`
+        - <- `MYSQL_USER=zabbix`
+        - <- `MYSQL_PASSWORD=@azerty123!!`
+  depends:
+    defines: depends
+    wait-for:
+      runnables:
+        - /zabbix/mysql
+      timeout: 60
+
+zabbix-web:
+  defines: runnable
+  inherits: ./common
+  containers:
+    defines: containers
+    zabbix-web:
+      image: zabbix/zabbix-web-apache-mysql:ubuntu-5.0.1
+      ports:
+        - "80:80"
+        - "443:443"
+      environment:
+        - <- `DB_SERVER_HOST=mysql`
+        - <- `MYSQL_DATABASE=zabbix`
+        - <- `MYSQL_USER=zabbix`
+        - <- `MYSQL_PASSWORD=@azerty123!!`
+        - <- `PHP_TZ=EUROPE/Paris`
+  depends:
+    defines: depends
+    wait-for:
+      runnables:
+        - /zabbix/mysql
+      timeout: 60
+
+grafana:
+  defines: runnable
+  containers:
+    defines: containers
+    grafana:
+      image: grafana/grafana:latest
+      ports:
+        -"3000:3000"
+      environment:
+        - <- `GF_INSTALL_PLUGINS=alexanderzobnin-zabbix-app`
+  depends:
+    defines: depends
+    wait-for:
+      runnables:
+        - /zabbix/zabbix-server
+      timeout: 60
+
+zabbix-agent:
+  defines: runnable
+  inherits: ./common
+  containers:
+    defines: containers
+    zabbix-agent:
+      image: zabbix/zabbix-agent2:alpine-5.0.1
+      ports:
+        -"10050:10050"
+      paths:
+        - <- `/data/zabbix:/var/lib/postgresql/data`
+      environment:
+        - <- `ZBX_HOSTNAME=Zabbix server Moncc`
+        - <- `ZBX_SERVER_HOST=zabbix-server`
+
+zabbix-stack:
+  defines: process-group
+  metadata:
+    defines: metadata
+    name: Zabbix
+    description: Real-time monitoring of IT components and services, such as networks, servers, VMs, applications and the cloud. 
+    tags: logging, monitoring, stack
+    website: https://www.zabbix.com/
+    source: https://github.com/zabbix/zabbix
+    publisher: "monk.io"
+    icon: https://assets.monk.io/icons/zabbix_logo.png
+    email: maciej@monk.io
+  runnable-list:
+    - /zabbix/mysql
+    - /zabbix/zabbix-server
+    - /zabbix/zabbix-web
+    - /zabbix/grafana
+    - /zabbix/zabbix-agent

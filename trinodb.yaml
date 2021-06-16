@@ -1,0 +1,277 @@
+namespace: /trinodb
+
+common:
+  metadata:
+    defines: metadata
+    name: Trino
+    description: Trino is a fast distributed SQL query engine for big data analytics.
+    tags: data, sql, analytics
+    icon: https://assets.monk.io/icons/trinodb.png
+    website: https://trino.io/
+    source: https://github.com/trinodb/trino
+    publisher: "monk.io"
+
+single:
+  defines: runnable
+  inherits: ./common
+  containers:
+    defines: containers
+    single:
+      image: docker.io/trinodb/trino:latest
+      ports:
+        - <-  `${HTTP_PORT}:${HTTP_PORT}`
+      paths:
+        - <-  `${VOLUME}:${VOLUME}`
+  files:
+    defines: files
+    c1:
+      path: /etc/node.properties
+      container: single
+      raw: true
+      contents: |
+                node.environment=`${ENVIRONMENT}`
+                node.id=`${NODE_ID}`
+                node.data-dir=`${VOLUME}`
+    c2:
+      path: /etc/jvm.config
+      container: single
+      raw: true
+      contents: |
+                -server
+                -Xmx16G
+                -XX:-UseBiasedLocking
+                -XX:+UseG1GC
+                -XX:G1HeapRegionSize=32M
+                -XX:+ExplicitGCInvokesConcurrent
+                -XX:+ExitOnOutOfMemoryError
+                -XX:+HeapDumpOnOutOfMemoryError
+                -XX:ReservedCodeCacheSize=512M
+                -XX:PerMethodRecompilationCutoff=10000
+                -XX:PerBytecodeRecompilationCutoff=10000
+                -Djdk.attach.allowAttachSelf=true
+                -Djdk.nio.maxCachedBufferSize=2000000
+    c3:
+      path: /etc/config.properties
+      container: single
+      raw: true
+      contents: |
+                coordinator=true
+                node-scheduler.include-coordinator=true
+                http-server.http.port=`${HTTP_PORT}`
+                query.max-memory=50GB
+                query.max-memory-per-node=1GB
+                query.max-total-memory-per-node=2GB
+                discovery-server.enabled=true
+                discovery.uri=http://`${DISCOVERY_URI}:${HTTP_PORT}`
+    c4:
+      path: /etc/log.properties
+      container: single
+      contents: "io.trino=INFO"
+    c5:
+      path: /etc/security/limits.conf
+      container: single
+      raw: true
+      contents: |
+                trino soft nofile 131072
+                trino hard nofile 131072
+
+  variables:
+    defines: variables
+    HTTP_PORT:
+      type: int
+      value: 8080
+    VOLUME:
+      type: string
+      value: "/var/trino/data"
+    ENVIRONMENT:
+      type: string
+      value: "production"
+    NODE_ID:
+      type: string
+      value: "ffffffff-ffff-ffff-ffff-ffffffffffff"
+    DISCOVERY_URI:
+      type: string
+      value: <- get-hostname("trinodb/single", "single")
+
+
+coordinator:
+  defines: runnable
+  inherits: ./common
+  containers:
+    defines: containers
+    coordinator:
+      image: docker.io/trinodb/trino:latest
+      ports:
+        - <-  `${HTTP_PORT}:${HTTP_PORT}`
+      paths:
+        - <-  `${VOLUME}:${VOLUME}`
+  files:
+    defines: files
+    c1:
+      path: /etc/node.properties
+      container: coordinator
+      raw: true
+      contents: |
+                node.environment=`${ENVIRONMENT}`
+                node.id=`${NODE_ID}`
+                node.data-dir=`${VOLUME}`
+    c2:
+      path: /etc/jvm.config
+      container: coordinator
+      raw: true
+      contents: |
+                -server
+                -Xmx16G
+                -XX:-UseBiasedLocking
+                -XX:+UseG1GC
+                -XX:G1HeapRegionSize=32M
+                -XX:+ExplicitGCInvokesConcurrent
+                -XX:+ExitOnOutOfMemoryError
+                -XX:+HeapDumpOnOutOfMemoryError
+                -XX:ReservedCodeCacheSize=512M
+                -XX:PerMethodRecompilationCutoff=10000
+                -XX:PerBytecodeRecompilationCutoff=10000
+                -Djdk.attach.allowAttachSelf=true
+                -Djdk.nio.maxCachedBufferSize=2000000
+    c3:
+      path: /etc/config.properties
+      container: coordinator
+      raw: true
+      contents: |
+                coordinator=true
+                node-scheduler.include-coordinator=false
+                http-server.http.port=`${HTTP_PORT}`
+                query.max-memory=50GB
+                query.max-memory-per-node=1GB
+                query.max-total-memory-per-node=2GB
+                discovery-server.enabled=true
+                discovery.uri=http://`${DISCOVERY_URI}:${HTTP_PORT}`
+    c4:
+      path: /etc/log.properties
+      container: coordinator
+      contents: "io.trino=INFO"
+    c5:
+      path: /etc/security/limits.conf
+      container: coordinator
+      raw: true
+      contents: |
+                trino soft nofile 131072
+                trino hard nofile 131072
+  variables:
+    defines: variables
+    HTTP_PORT:
+      type: int
+      value: 8080
+    VOLUME:
+      type: string
+      value: "/var/trino/data"
+    ENVIRONMENT:
+      type: string
+      value: "production"
+    NODE_ID:
+      type: string
+      value: "ffffffff-ffff-ffff-ffff-ffffffffffff"
+    DISCOVERY_URI:
+      type: string
+      value: <- get-hostname("trinodb/coordinator", "coordinator")
+      
+worker:
+  defines: runnable
+  inherits: ./common
+  containers:
+    defines: containers
+    worker:
+      image: docker.io/trinodb/trino:latest
+      ports:
+        - <-  `${HTTP_PORT}:${HTTP_PORT}`
+      paths:
+        - <-  `${VOLUME}:${VOLUME}`
+  files:
+    defines: files
+    c1:
+      path: /etc/node.properties
+      container: worker
+      raw: true
+      contents: |
+                node.environment=`${ENVIRONMENT}`
+                node.id=`${NODE_ID}`
+                node.data-dir=`${VOLUME}`
+    c2:
+      path: /etc/jvm.config
+      container: worker
+      raw: true
+      contents: |
+                -server
+                -Xmx16G
+                -XX:-UseBiasedLocking
+                -XX:+UseG1GC
+                -XX:G1HeapRegionSize=32M
+                -XX:+ExplicitGCInvokesConcurrent
+                -XX:+ExitOnOutOfMemoryError
+                -XX:+HeapDumpOnOutOfMemoryError
+                -XX:ReservedCodeCacheSize=512M
+                -XX:PerMethodRecompilationCutoff=10000
+                -XX:PerBytecodeRecompilationCutoff=10000
+                -Djdk.attach.allowAttachSelf=true
+                -Djdk.nio.maxCachedBufferSize=2000000
+    c3:
+      path: /etc/config.properties
+      container: worker
+      raw: true
+      contents: |
+                coordinator=false
+                http-server.http.port=`${HTTP_PORT}`
+                query.max-memory=50GB
+                query.max-memory-per-node=1GB
+                query.max-total-memory-per-node=2GB
+                discovery-server.enabled=true
+                discovery.uri=http://`${DISCOVERY_URI}:${HTTP_PORT}`
+    c4:
+      path: /etc/log.properties
+      container: worker
+      contents: "io.trino=INFO"
+    c5:
+      path: /etc/security/limits.conf
+      container: worker
+      raw: true
+      contents: |
+                trino soft nofile 131072
+                trino hard nofile 131072
+  depends:
+    defines: depends
+    wait-for:
+      runnables:
+        - /trinodb/coordinator
+      timeout: 60
+  variables:
+    defines: variables
+    HTTP_PORT:
+      type: int
+      value: 8080
+    VOLUME:
+      type: string
+      value: "/var/trino/data"
+    ENVIRONMENT:
+      type: string
+      value: "production"
+    NODE_ID:
+      type: string
+      value: "aaaaaaaa-ffff-ffff-ffff-ffffffffffff"
+    DISCOVERY_URI:
+      type: string
+      value: <- get-hostname("trinodb/coordinator", "coordinator")
+  
+cluster-1c-1w:
+  defines: process-group
+  metadata:
+    defines: metadata
+    name: Trino
+    description: Trino is a fast distributed SQL query engine for big data analytics.
+    tags: data, sql, analytics, stack
+    icon: https://assets.monk.io/icons/trinodb.png
+    website: https://trino.io/
+    source: https://github.com/trinodb/trino
+    publisher: "monk.io"
+  runnable-list:
+    - /trinodb/coordinator
+    - /trinodb/worker

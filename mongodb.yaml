@@ -1,0 +1,18 @@
+namespace: /mongodb
+
+latest:
+  defines: runnable
+  version: latest
+  containers:
+    defines: containers
+    database:
+      image: mongo:latest
+      ports:
+        - "27017:27017"
+      paths:
+        - <- `${volume-data}:/data/db`
+  variables:
+    defines: variables
+    volume-data:
+      type: string
+      value: <- `${moncc-volume-path}/mongodb`

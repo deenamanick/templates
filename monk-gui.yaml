@@ -1,0 +1,11 @@
+namespace: /monk-gui
+
+latest:
+ defines: runnable
+ containers:
+   defines: containers
+   gui:
+     image: gcr.io/monk-releases/monk-gui
+     image-tag: latest
+     ports:
+       - <- `${monk-gui-port}:8080`

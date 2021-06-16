@@ -1,0 +1,32 @@
+namespace: /bitnami-postgres
+
+postgres-no-pwd:
+  metadata:
+    defines: metadata
+    name: PostgreSQL
+    description: PostgreSQL is a powerful, open source object-relational database system with over 30 years of active development that has earned it a strong reputation for reliability, feature robustness, and performance.
+    tags: dataops,database
+    website: https://www.postgresql.org/
+    source: https://github.com/postgres/postgres
+    publisher: "monk.io"
+    icon: https://assets.monk.io/icons/postgresql_logo.png
+    email: maciej@monk.io
+  defines: runnable
+  version: latest
+  containers:
+    defines: containers
+    postgres:
+      image: bitnami/postgresql:latest 
+      environment:
+        - <- `ALLOW_EMPTY_PASSWORD=${empty_password}`
+      ports:
+        - 0.0.0.0:5432:5432/tcp
+  variables:
+    defines: variables
+    empty_password:
+      type: string
+      value: yes
+
+12-no-pwd:
+  defines: runnable
+  inherits: ./postgres-no-pwd

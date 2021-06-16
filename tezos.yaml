@@ -1,0 +1,130 @@
+namespace: /tezos
+
+common:
+  metadata:
+    defines: metadata
+    name: Tezos
+    description: Tezos is a new platform for smart contracts and decentralized applications.
+    tags: blockchain
+    currency: XTZ
+    icon: tezos.png
+    website: https://tezos.com/
+    source: https://gitlab.com/tezos/
+    publisher: "monk.io"
+    white-paper: https://tezos.com/static/white_paper-2dc8c02267a8fb86bd67a108199441bf.pdf
+    twitter: https://twitter.com/tezos
+    facebook: https://www.facebook.com/tezosledger/
+    reddit: https://www.reddit.com/r/tezos/
+    telegram: https://t.me/tezosplatform
+    network-name: "mainnet"
+    node-type: "Full"
+    consensus-type: "Proof of Stake"
+
+  requirements:
+    defines: requirements
+    CPU: "Dual-Core"
+    # https://medium.com/tezos/its-a-baker-s-life-for-me-c214971201e1
+    # "Given the experience gleamed in the test-network, at least 8 gigabytes of RAM would be advisable."
+    RAM: 8192
+    GPU: false
+    # https://medium.com/@tezbaker.io/tezos-mainnet-setting-up-home-baking-4bf258a9fd30
+    # "The current disk space requirement is 140GB so, make sure you have at least 200GB"
+    disk: 256000
+
+  containers:
+    defines: containers
+    tezos-node:
+      image: docker.io/tezos/tezos
+      image-tag: mainnet
+      ports:
+        - <- `127.0.0.1:${rpc-port}:8732`
+        - <- `${host}:${net-port}:${net-port}`
+      paths:
+        - <- `${volume-node}:/var/run/tezos/node`
+        - <- `${volume-client}:/var/run/tezos/client`
+      entrypoint: <- `/usr/local/bin/entrypoint.sh tezos-node --net-addr ${net-port}`
+
+    tezos-backer:
+      image: docker.io/tezos/tezos
+      image-tag: mainnet
+      paths:
+        - <- `${volume-node}:/var/run/tezos/node`
+        - <- `${volume-client}:/var/run/tezos/client`
+      environment:
+        - <- `NODE_HOST=${node-internal-host}`
+        - "PROTOCOL=004-Pt24m4xi"
+      bash: <- `sleep 60s && /usr/local/bin/entrypoint.sh tezos-baker --max-priority 128`
+
+    tezos-accuser:
+      image: docker.io/tezos/tezos
+      image-tag: mainnet
+      paths:
+        - <- `${volume-client}:/var/run/tezos/client`
+      environment:
+        - <- `NODE_HOST=${node-internal-host}`
+        - "PROTOCOL=004-Pt24m4xi"
+      bash: <- `sleep 60s && /usr/local/bin/entrypoint.sh tezos-accuser`
+
+    tezos-endorser:
+      image: docker.io/tezos/tezos
+      image-tag: mainnet
+      paths:
+        - <- `${volume-client}:/var/run/tezos/client`
+      environment:
+        - <- `NODE_HOST=${node-internal-host}`
+        - "PROTOCOL=004-Pt24m4xi"
+      bash: <- `sleep 60s && /usr/local/bin/entrypoint.sh tezos-endorser`
+
+  variables:
+    defines: variables
+
+    rpc-port:
+      type: int
+      value: 8732
+
+    net-port:
+      type: int
+      value: 9732
+
+    node-internal-host:
+      type: string
+      value: "tezos_mainnet_tezos_node"
+
+    host:
+      type: string
+      value: "0.0.0.0"
+
+    volume-node:
+      type: string
+      value: <- `${moncc-volume-path}/tezos-node`
+
+    volume-client:
+      type: string
+      value: <- `${moncc-volume-path}/tezos-client`
+
+alphanet:
+  defines: runnable
+  inherits: ./common
+  version: alphanet
+  metadata:
+    network-name: "alphanet"
+  containers:
+    tezos-backer:
+      image-tag: alphanet
+    tezos-accuser:
+      image-tag: alphanet
+    tezos-endorser:
+      image-tag: alphanet
+    tezos-node:
+      image-tag: alphanet
+  variables:
+    node-internal-host:
+      value: "tezos_alphanet_tezos_node"
+
+mainnet:
+  defines: runnable
+  inherits: ./common
+  version: mainnet
+  containers:
+    tezos-node:
+      image-tag: mainnet

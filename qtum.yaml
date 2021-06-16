@@ -1,0 +1,176 @@
+namespace: /qtum
+
+common:
+  metadata:
+    defines: metadata
+    name: Qtum
+    description: Qtum is an open sourced public blockchain platform, leveraging the security of UTXO while enabling multiple virtual machines including EVM and the revolutionary x86 VM. Qtum is PoS based and boasts a Decentralized Governance Protocol (DGP) allowing specific blockchain settings to be modified by making use of smart contracts.
+    tags: blockchain
+    currency: QTUM
+    icon: https://assets.monk.io/icons/1135px-Qtum_logo.svg.png
+    website: https://qtum.org/en/
+    source: https://github.com/qtumproject
+    publisher: "monk.io"
+    white-paper: https://old.qtum.org/en/white-papers
+    twitter: https://twitter.com/qtumofficial
+    facebook: https://www.facebook.com/QtumOfficial/
+    reddit: https://www.reddit.com/r/Qtum/
+    telegram: https://t.me/qtumofficial
+    network-name: "mainnet"
+    node-type: "full"
+    consensus-type: "Proof of Stake"
+
+qtum-node:
+  defines: runnable
+  inherits: ./common
+  containers:
+    defines: containers
+    qtum-node:
+      image: docker.io/qtum/qtum
+      ports:
+        - <- `${host}:${p2p-port}:${p2p-port}`
+        - <- `127.0.0.1:${rpc-port}:${rpc-port}`
+      paths:
+        - <- `${moncc-volume-path}/qtum:/root/.qtum/`
+      bash: <- `qtumd`
+
+  files:
+    defines: files
+    config:
+      path: /root/.qtum/qtum.conf
+      container: qtum-node
+      contents: |
+        rpcuser={{v "username"}}
+        rpcpassword={{v "password"}}
+        testnet={{v "testnet"}}
+        {{- if v "uacomment"}}
+        uacomment={{v "uacomment"}}
+        addnode=qtum5.dynu.net
+        {{- end}}
+        {{- if v "testnet"}}
+        [test]
+        {{- end}}
+        rpcbind=0.0.0.0
+        rpcallowip=0.0.0.0/0
+        
+  variables:
+    defines: variables
+    p2p-port:
+      type: int
+      value: 3888
+    rpc-port:
+      type: int
+      value: 3889
+    host:
+      type: string
+      value: "0.0.0.0"
+    testnet:
+      type: int
+      value: 0
+    username:
+      type: string
+      value: "qtum"
+      secret: true
+    password:
+      type: string
+      value: "qtumtest"
+      secret: true
+    uacomment:
+      type: string
+      value: ""
+
+mainnet:
+  defines: runnable
+  inherits: ./qtum-node
+
+full-node:
+  defines: runnable
+  inherits: ./latest
+  metadata:
+    network-name: "Global Full Node Incentive Program"
+  variables:
+    uacomment:
+      description: The Qtum address for the Qtum Global Full Nodes Incentive Program
+    username:
+      value: "qtum"
+    password:
+      value: "qtum123"
+
+testnet:
+  defines: runnable
+  inherits: ./latest
+  metadata:
+    network-name: "testnet"
+  variables:
+    testnet:
+      value: 1
+    rpc-port:
+      value: 13889
+    p2p-port:
+      value: 13888
+
+latest:
+  defines: runnable
+  inherits: ./v0.19.1
+
+v0.19.1:
+  defines: runnable
+  inherits: ./qtum-node
+  version: v0.19.1
+  containers:
+    qtum-node:
+      image-tag: 0.19.1
+
+janus:
+  defines: runnable
+  inherits: ./common
+  version: latest
+  containers:
+    defines: containers
+    janus:
+      image: docker.io/whitenoi5/qtum-janus:latest
+      ports:
+        - <- `${janus}:${int-janus}`
+        - <- `${qtumd}:${int-qtumd}`
+      paths:
+        - <- `${moncc-volume-path}/scripts:/scripts`
+      environment:
+        - <- `QTUM_DATADIR=${qtum_data}`
+        - <- `QTUM_RPC_USER=${qtum_user}`
+        - <- `QTUM_RPC_PASS=${qtum_pass}`
+        - <- `QTUM_RPC=${qtum_rpc}`
+        - <- `QTUM_NETWORK=${qtum_net}`
+  actions:
+    defines: actions
+    run-init-script:
+      description: Run Init Script
+      code: exec("janus", "/bin/sh", "-c", "/scripts/init-container.sh")
+  variables:
+    defines: variables
+    janus:
+      type: int
+      value: 23889
+    int-janus:
+      type: int
+      value: 23889
+    qtumd:
+      type: int
+      value: 3889
+    int-qtumd:
+      type: int
+      value: 3889
+    qtum_data:
+      type: string
+      value: /dapp/.qtum
+    qtum_user:
+      type: string
+      value: qtum
+    qtum_pass:
+      type: string
+      value: test
+    qtum_rpc:
+      type: string
+      value: http://$QTUM_RPC_USER:$QTUM_RPC_PASS@localhost:3889
+    qtum_net:
+      type: string
+      value: regtest

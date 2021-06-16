@@ -1,0 +1,104 @@
+namespace: /nginx
+
+common:
+  metadata:
+    defines: metadata
+    name: NGINX Reverse Proxy with SSL and Certbot
+    description: Reverse Proxy based on NGINX
+    tags: nginx, reverse proxy, ssl, certbot
+    publisher: "monk.io"
+    icon: https://assets.monk.io/icons/nginx-logo-FF65602A76-seeklogo.com.png
+    email: maciej@monk.io
+  containers:
+    defines: containers
+    nginx:
+      image: docker.io/whitenoi5/nginx-rev-proxy-ssl:1.15-alpine
+      ports:
+        - 0.0.0.0:80:80/tcp
+        - 0.0.0.0:443:443/tcp
+      environment:
+        - <- `ENABLE_SSL=${ssl}`
+        - <- `EMAIL=${email}`
+        - <- `DOMAIN=${server-name}`
+      paths:
+        - <- `${moncc-volume-path}/nginx/certbot:/var/www/certbot`
+        - <- `${moncc-volume-path}/nginx/certificates:/usr/share/nginx/certificates`
+  variables:
+    defines: variables
+    proxy-pass-protocol:
+      type: string
+      value: http
+    proxy-pass-url:
+      type: string
+      value: localhost
+    proxy-pass-port:
+      type: int
+      value: 80
+    ssl:
+      type: bool
+      value: false
+    # Only Required When ssl true
+    server-name:
+      type: string
+      value: localhost
+    email:
+      type: string
+      value: email@example.com
+  files:
+    defines: files
+    server-def:
+      container: nginx
+      path: /etc/nginx/conf.d/default.conf
+      mode: 0777
+      contents: |
+        server {
+          listen 80;
+          server_name {{ v "server-name" }} www.{{ v "server-name" }};
+          {{ if v "ssl" }}
+          location /.well-known/acme-challenge/ {
+            root /var/www/certbot;
+          }
+          {{ end }}
+          location / {
+            {{ if v "ssl" }}
+            return 301 https://{{ v "server-name" }}$request_uri;
+            {{ else }}
+            proxy_pass {{ v "proxy-pass-protocol" }}://{{ v "proxy-pass-url" }}:{{ v "proxy-pass-port" }};
+            proxy_pass_request_headers on;
+            proxy_http_version 1.1;
+            proxy_set_header X-Forwarded-Host $host;
+            proxy_set_header X-Forwarded-Server $host;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header Host $host;
+            {{ end }}
+          }
+        }
+
+        {{ if v "ssl" }}
+        server {
+          listen 443 ssl;
+          server_name {{ v "server-name" }} www.{{ v "server-name" }};
+          ssl_certificate /usr/share/nginx/certificates/fullchain.pem;
+          ssl_certificate_key /usr/share/nginx/certificates/privkey.pem;
+          include /etc/ssl-options/options-nginx-ssl.conf;
+          ssl_dhparam /etc/ssl-options/ssl-dhparams.pem;
+          location / {
+            proxy_pass {{ v "proxy-pass-protocol" }}://{{ v "proxy-pass-url" }}:{{ v "proxy-pass-port" }};
+            proxy_pass_request_headers on;
+            proxy_http_version 1.1;
+            proxy_set_header X-Forwarded-Host $host;
+            proxy_set_header X-Forwarded-Server $host;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header Host $host;
+          }    
+        } 
+        {{ end }}
+
+reverse-proxy-ssl-certbot:
+  defines: runnable
+  inherits: ./common
+  version: 1.15-alpine

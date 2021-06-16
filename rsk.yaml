@@ -1,0 +1,217 @@
+namespace: /rsk
+
+common:
+  metadata:
+    defines: metadata
+    name: RSK
+    description: RSK is the most secure smart contract network in the world and enables decentralized applications secured by the Bitcoin Network to empower people and improve the quality of life of millions.
+    tags: blockchain
+    currency: RBTC
+    icon: rsk.png
+    website: https://www.rsk.co/
+    source: https://github.com/rsksmart
+    publisher: "monk.io"
+    white-paper: https://docs.rsk.co/RSK_White_Paper-Overview.pdf
+    twitter: https://twitter.com/rsksmart
+    facebook: https://www.facebook.com/RSKsmart/
+    reddit: https://www.reddit.com/r/rootstock/
+    telegram: https://t.me/RSKsmart
+    network-name: "mainnet"
+    node-type: "full"
+
+  requirements:
+    # https://github.com/rsksmart/rskj/wiki/Node-Minimum-Requirements
+    defines: requirements
+    CPU: "2 Cores"
+    RAM: 8192
+    disk: 512000
+
+  containers:
+    defines: containers
+    rsk-node:
+      image: docker.io/oaknode/rsk
+      ports:
+        - <- `${host}:${p2p-port}:${p2p-port}`
+        - <- `127.0.0.1:${rpc-port}:${rpc-port}`
+      environment:
+        - <- `NETWORK=${network}`
+        - <- `CONTAINER_NAME=${container-name}`
+      paths:
+        - <- `${volume}:/var/lib/rsk/database`
+      bash: "chown -R rsk:rsk /var/lib/rsk/database; if [ \"${NETWORK}\" = \"testnet\" ]; then rm -f /etc/rsk/node.conf && ln -s /etc/rsk/testnet.conf /etc/rsk/node.conf; fi && echo \\\\nwallet.enabled = true \\\\nrpc.providers.web.cors=\\\"*\\\"\\\\nrpc.providers.web.http.hosts = [\\\"localhost\\\",\\\"0.0.0.0\\\",\\\"$CONTAINER_NAME\\\"]  >> /etc/rsk/node.conf && cat /etc/rsk/node.conf && /usr/bin/supervisord"
+
+  variables:
+    defines: variables
+
+    p2p-port:
+      type: int
+      value: 5050
+
+    rpc-port:
+      type: int
+      value: 4444
+
+    host:
+      type: string
+      value: "0.0.0.0"
+
+    volume:
+      type: string
+      value: <- `${moncc-volume-path}/rsk`
+
+    network:
+      type: string
+      value: "mainnet"
+
+    container-name:
+      type: string
+      value: "rsk_mainnet_rsk_node"
+
+mainnet:
+  defines: runnable
+  inherits: ./latest
+
+testnet:
+  defines: runnable
+  inherits: ./latest
+  metadata:
+    network-name: "testnet"
+  variables:
+    network:
+      value: "testnet"
+    p2p-port:
+      value: 50505
+    container-name:
+      type: string
+      value: "rsk_testnet_rsk_node"
+
+lumino-mainnet:
+  defines: runnable
+  version: latest
+  inherits: ./mainnet
+  metadata:
+    network-name: "mainnet"
+    node-type: "lumino"
+  containers:
+    lumino-node:
+      image-tag: latest
+      image: docker.io/oaknode/lumino
+      ports:
+        - <- `127.0.0.1:${lumino-api-port}:${lumino-api-port}`
+      paths:
+        - <- `${lumino-volume}:/data`
+        - <- `${keystore-volume}:/keystore`
+      environment:
+        - <- `RSK_NODE_URL=${rsk-node-url}`
+        - <- `RSK_WALLET_ADDRESS=${rsk-wallet-address}`
+        - <- `RSK_WALLET_PASSWORD=${rsk-wallet-password}`
+        - <- `LUMINO_API_PORT=${lumino-api-port}`
+        - <- `NETWORK_ID=${network-id}`
+        - <- `ENVIRONMENT_TYPE=${environment-type}`
+        - <- `TOKENNETWORK_REGISTRY_CONTRACT_ADDRESS=${tokennetwork-registry-contract-address}`
+        - <- `SECRET_REGISTRY_CONTRACT_ADDRESS=${secret-registry-contract-address}`
+        - <- `ENDPOINT_REGISTRY_CONTRACT_ADDRESS=${endpoint-registry-contract-address}`
+
+      entrypoint: /entrypoint.sh
+
+  variables:
+    container-name:
+      value: "rsk_lumino-mainnet_rsk_node"
+    keystore-volume:
+      type: string
+      value:
+      description: "The directory in which your wallet (a keystore file) is located"
+      ask: true
+
+    rsk-wallet-address:
+      type: string
+      ask: true
+      description: "The RSK wallet address with at least 0.001 RBTC"
+      value: ""
+
+    rsk-wallet-password:
+      type: string
+      ask: true
+      description: "The RSK wallet keystore password"
+      value: ""
+
+    lumino-volume:
+      type: string
+      value: <- `${moncc-volume-path}/lumino`
+
+    rsk-node-url:
+      type: string
+      value: <- `http://${container-name}:${rpc-port}`
+
+    lumino-api-port:
+      type: int
+      value: 5001
+
+    environment-type:
+      type: string
+      value: development
+
+    network-id:
+      type: int
+      value: 30
+
+    tokennetwork-registry-contract-address:
+      type: string
+      value: "0x59eC7Ced1e1ee2e4ccC74F197fB680D8f9426B96"
+
+    secret-registry-contract-address:
+      type: string
+      value: "0x4Dea623Ae7c5cb1F4aF9B46721D9a72d93C42BE9"
+
+    endpoint-registry-contract-address:
+      type: string
+      value: "0x7d1E6f17baa2744B5213b697ae4C1D287bB10df0"
+
+    host:
+      type: string
+      value: "0.0.0.0"
+
+lumino-testnet:
+  defines: runnable
+  inherits: ./lumino-mainnet
+  metadata:
+    network-name: "testnet"
+    node-type: "lumino"
+  variables:
+    network:
+      value: "testnet"
+    p2p-port:
+      value: 50505
+    container-name:
+      type: string
+      value: "rsk_lumino-testnet_rsk_node"
+    network-id:
+      value: 31
+    environment-type:
+      value: development
+    tokennetwork-registry-contract-address:
+      value: "0xa494FC762181fF78Fe4CBB75D8609CCff1E63c1B"
+    secret-registry-contract-address:
+      value: "0xFd17D36EF2b3C5E71aBA059b3FC361644206213b"
+    endpoint-registry-contract-address:
+      value: "0xb048Af6c0FBFBF1c0c01Ea9A302987011153dbB8"
+
+latest:
+  defines: runnable
+  inherits: ./v1.0.2
+
+v1.0.2:
+  defines: runnable
+  inherits: ./common
+  version: v1.0.2
+  containers:
+    rsk-node:
+      image-tag: 1.0.2
+
+v0.6.2:
+  defines: runnable
+  inherits: ./common
+  version: v0.6.2
+  containers:
+    rsk-node:
+      image-tag: 0.6.2

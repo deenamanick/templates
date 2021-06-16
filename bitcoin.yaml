@@ -1,0 +1,208 @@
+namespace: /bitcoin
+
+common:
+  metadata:
+    defines: metadata
+    name: Bitcoin
+    description: Bitcoin uses peer-to-peer technology to operate with no central authority or banks; managing transactions and the issuing of bitcoins is carried out collectively by the network. 
+    tags: blockchain
+    currency: BTC
+    icon: https://assets.monk.io/icons/bitcoin.png
+    website: https://bitcoin.org
+    source: https://github.com/bitcoin
+    publisher: "monk.io"
+    white-paper: https://bitcoin.org/en/bitcoin-paper
+    twitter: https://twitter.com/bitcoindotorg
+    facebook: https://www.facebook.com/BITCOlN/
+    reddit: https://www.reddit.com/r/Bitcoin/
+    network-name: "mainnet"
+    node-type: "full"
+    consensus-type: "Proof of Work"
+
+  requirements:
+    defines: requirements
+    CPU: # not specified: https://bitcoin.org/en/full-node#minimum-requirements
+    RAM: 2048
+    GPU: false
+    # the URL above specifies 200GB, but the blockchain size as of April 2019 is
+    # approximately 210GB according to
+    # https://www.statista.com/statistics/647523/worldwide-bitcoin-blockchain-size/
+    disk: 256000
+
+  containers:
+    defines: containers
+    bitcoin-node:
+      image: docker.io/oaknode/bitcoin
+      ports:
+        - <- `127.0.0.1:${btc-rpc-port}:${btc-rpc-port}`
+        - <- `${host}:${btc-p2p-port}:${btc-p2p-port}`
+      environment:
+        - <- `BITCOIN_RPC_PASSWORD=${btc-rpcpassword}`
+        - <- `BITCOIN_RPC_USER=${btc-rpcuser}`
+      paths:
+        - <- `${btc-volume}:/data`
+      entrypoint: <- `/entrypoint.sh bitcoind -rpcbind=0.0.0.0:${btc-rpc-port} -rpcuser=${btc-rpcuser} -rpcpassword=${btc-rpcpassword} -zmqpubrawtx=tcp://0.0.0.0:28332 -zmqpubrawblock=tcp://0.0.0.0:28333 ${network}`
+
+  variables:
+    defines: variables
+
+    btc-rpc-port:
+      type: int
+      value: 8332
+
+    btc-p2p-port:
+      type: int
+      value: 8333
+
+    btc-volume:
+      type: string
+      value: <- `${moncc-volume-path}/bitcoind`
+
+    network:
+      type: string
+      value: ""
+
+    btc-rpcuser:
+      type: string
+      value: ""
+      ask: true
+      check-min: 6
+      description: "RPC username (minimum 6 chars)"
+
+    btc-rpcpassword:
+      type: string
+      value: ""
+      ask: true
+      check-min: 6
+      description: "RPC password (minimum 6 chars)"
+
+    host:
+      type: string
+      value: "0.0.0.0"
+
+testnet:
+  defines: runnable
+  inherits: ./latest
+  metadata:
+    network-name: "testnet"
+  variables:
+    network:
+      value: "-testnet"
+    btc-rpc-port:
+      value: 18332
+    btc-p2p-port:
+      value: 18333
+
+mainnet:
+  defines: runnable
+  inherits: ./latest
+
+lightning:
+  defines: runnable
+  inherits: ./latest
+  metadata:
+    network-name: "lightning-mainnet"
+    node-type: "lightning"
+  variables:
+    lnd-network:
+      type: string
+      value: "mainnet"
+    lnd-volume:
+      type: string
+      value: <- `${moncc-volume-path}/bitcoin-lightning`
+    ln-rpc-port:
+      type: int
+      value: 10009
+    ln-grpc-port:
+      type: int
+      value: 8080
+    ln-p2p-port:
+      type: int
+      value: 9735
+  containers:
+    lightning-node:
+      image: docker.io/lightningnetwork/lnd-alpine
+      image-tag: v0.5.2-beta-7-l1
+      ports:
+        - <- `${ln-grpc-port}:8080`
+        - <- `${ln-rpc-port}:10009`
+        - <- `${host}:${ln-p2p-port}:9735`
+      paths:
+        - <- `${btc-volume}:/root/.bitcoin/`
+        - <- `${lnd-volume}:/root/.lnd`
+      environment:
+        - <- `RPCUSER=${btc-rpcuser}`
+        - <- `RPCPASS=${btc-rpcpassword}`
+        - <- `NETWORK=${lnd-network}`
+        - <- `HOST=bitcoin_lightning_bitcoin_node`
+        - "CHAIN=bitcoin"
+        - "BACKEND=bitcoind"
+        - <- `EXTERNALIP=${external-ip}`
+      bash: "while [ : ]; do sleep 30s && lnd --noseedbackup --rpclisten=0.0.0.0:10009 --restlisten=0.0.0.0:8080 --logdir='/data' --$CHAIN.active --$CHAIN.$NETWORK --$CHAIN.node=bitcoind --$BACKEND.rpchost=$HOST --$BACKEND.rpcuser=$RPCUSER --$BACKEND.rpcpass=$RPCPASS --$BACKEND.zmqpubrawblock=tcp://$HOST:28332 --$BACKEND.zmqpubrawtx=tcp://$HOST:28333 --debuglevel=debug --tlsextraip=0.0.0.0; done"
+
+lightning-testnet:
+  defines: runnable
+  inherits: ./testnet
+  metadata:
+    network-name: "lightning-testnet"
+    node-type: "lightning"
+  variables:
+    lnd-network:
+      type: string
+      value: "testnet"
+    ln-rpc-port:
+      type: int
+      value: 10009
+    ln-grpc-port:
+      type: int
+      value: 8080
+    ln-p2p-port:
+      type: int
+      value: 9735
+    network:
+      value: "-testnet=1"
+    lnd-volume:
+      type: string
+      value: <- `${moncc-volume-path}/bitcoin-lightning`
+    btc-rpc-port:
+      value: 18332
+    btc-p2p-port:
+      value: 18333
+  containers:
+    lightning-node:
+      image: docker.io/lightningnetwork/lnd-alpine
+      image-tag: v0.5.2-beta-7-l1
+      ports:
+        - <- `${ln-grpc-port}:8080`
+        - <- `${ln-rpc-port}:10009`
+        - <- `${host}:${ln-p2p-port}:9735`
+      paths:
+        - <- `${btc-volume}:/root/.bitcoin/`
+        - <- `${lnd-volume}:/root/.lnd`
+      environment:
+        - <- `RPCUSER=${btc-rpcuser}`
+        - <- `RPCPASS=${btc-rpcpassword}`
+        - <- `NETWORK=${lnd-network}`
+        - <- `HOST=bitcoin_lightning-testnet_bitcoin_node`
+        - "CHAIN=bitcoin"
+        - "BACKEND=bitcoind"
+        - <- `EXTERNALIP=${external-ip}`
+      bash: "while [ : ]; do sleep 30s && lnd --noseedbackup --rpclisten=0.0.0.0:10009 --restlisten=0.0.0.0:8080 --logdir='/data' --$CHAIN.active --$CHAIN.$NETWORK --$CHAIN.node=bitcoind --$BACKEND.rpchost=$HOST --$BACKEND.rpcuser=$RPCUSER --$BACKEND.rpcpass=$RPCPASS --$BACKEND.zmqpubrawblock=tcp://$HOST:28332 --$BACKEND.zmqpubrawtx=tcp://$HOST:28333 --debuglevel=debug --tlsextraip=0.0.0.0; done"
+
+latest:
+  defines: runnable
+  inherits: ./v0.18.1
+
+v0.19.0.1:
+  inherits: ./common
+  version: v0.19.0.1
+  containers:
+    bitcoin-node:
+      image-tag: 0.19.0.1
+
+v0.18.1:
+  inherits: ./common
+  version: v0.18.1
+  containers:
+    bitcoin-node:
+      image-tag: 0.18.1

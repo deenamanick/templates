@@ -1,0 +1,22 @@
+namespace: /apache-zeppelin
+
+example-notebook:
+  defines: runnable
+  version: latest
+  metadata:
+    defines: metadata
+    name: Apache Zeppelin
+    description: Web-based notebook that enables data-driven, interactive data analytics and collaborative documents with SQL, Scala and more. 
+    tags: analytics,python,sql,spark,notebook
+    website: https://zeppelin.apache.org/
+    source: https://github.com/apache/zeppelin
+    publisher: monk.io
+    icon: https://assets.monk.io/icons/zeppelin_classic_logo.png
+  containers:
+    defines: containers
+    zeppelin:
+      image: docker.io/whitenoi5/stream-zeppelin:latest
+      ports:
+        - <- `0.0.0.0:8080:8080`
+        - <- `0.0.0.0:8443:8443`
+        - <- `0.0.0.0:4040:4040`

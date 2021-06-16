@@ -1,0 +1,43 @@
+namespace: /nginx
+
+reverse-proxy:
+  defines: runnable
+  containers:
+    defines: containers
+    nginx-reverse-proxy:
+      image: bitnami/nginx:latest
+      ports:
+        - <- `0.0.0.0:${listen-port}:${listen-port}/tcp`
+  variables:
+    defines: variables
+    listen-port:
+      type: string
+      value: 8080
+    proxy-target-host:
+      type: string
+      value: google.com
+    proxy-target-port:
+      type: string
+      value: 80
+    server-name:
+      type: string
+      value: www.example.com
+  files:
+    defines: files
+    server-def:
+      container: nginx-reverse-proxy
+      path: /opt/bitnami/nginx/conf/server_blocks/reverse_proxy.conf
+      mode: 0777
+      contents: |
+        server {
+          listen 0.0.0.0:{{ v "listen-port" }};
+          server_name {{ v "server-name" }};
+          location / {
+            proxy_pass http://{{ v "proxy-target-host" }}:{{ v "proxy-target-port" }};
+          }
+        }
+
+
+latest:
+  defines: runnable
+  inherits: nginx/reverse-proxy

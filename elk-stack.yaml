@@ -1,0 +1,32 @@
+namespace: /elk
+
+elasticsearch-1:
+  defines: runnable
+  inherits: /elk/base/elasticsearch
+
+logstash-1:
+  defines: runnable
+  inherits: /elk/base/logstash
+
+  variables:
+    defines: variables
+    elasticsearch-hosts:
+      type: string
+      value: <- get-hostname("/elk/elasticsearch-1", "elasticsearch")
+
+kibana-1:
+  defines: runnable
+  inherits: /elk/base/kibana
+
+  variables:
+    defines: variables
+    elasticsearch-hosts:
+      type: string
+      value: <- get-hostname("/elk/elasticsearch-1", "elasticsearch")
+
+stack:
+  defines: process-group
+  runnable-list:
+    - /elk/elasticsearch-1
+    - /elk/logstash-1
+    - /elk/kibana-1

@@ -1,0 +1,65 @@
+namespace: /tig
+
+references:
+  environment: &environment
+    environment:
+      - <- `INFLUXDB_URL=http://${influxdb_host}:${influxdb_port}`
+      - <- `INFLUXDB_DB_NAME=${influxdb_db_name}`
+
+common:
+  variables:
+    defines: variables
+    influxdb_host:
+      type: string
+      value: <- get-hostname("tig/influxdb", "influxdb")
+    influxdb_port:
+      type: int
+      value: 8086
+    influxdb_db_name:
+      type: string
+      value: "telegraf"
+
+telegraf:
+  defines: runnable
+  metadata:
+    defines: metadata
+    name: Telegraf
+    description: The plugin-driven server agent for collecting & reporting metrics. 
+    tags: monitoring, logging
+    website: https://www.influxdata.com/
+    source: https://github.com/influxdata/telegraf
+    publisher: "monk.io"
+    icon: https://assets.monk.io/icons/influxdata-logo--symbol--pool.svg
+    email: maciej@monk.io
+  inherits: ./common
+  version: 1.13
+  containers:
+    defines: containers
+    telegraf:
+      image: whitenoi5/telegraf
+      image-tag: latest # "1.13"
+      <<: *environment
+  variables:
+    defines: variables
+    telegraf_config_path:
+      type: string
+      value: "/tmp/telegraf.conf"
+
+influxdb:
+  defines: runnable
+  inherits: /influxdb/latest
+
+grafana:
+  defines: runnable
+  inherits: /grafana/latest
+  version: latest
+  containers:
+    grafana:
+      <<: *environment
+
+stack:
+  defines: process-group
+  runnable-list:
+      - /tig/telegraf
+      - /tig/influxdb
+      - /tig/grafana

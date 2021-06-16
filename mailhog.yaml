@@ -1,0 +1,20 @@
+namespace: /mailhog
+
+latest:
+  version: latest
+  metadata:
+    defines: metadata
+    name: Mailhog
+    description: Web and API based SMTP testing 
+    tags: smtp, email
+    source: https://github.com/mailhog/MailHog
+    publisher: "monk.io"
+    email: maciej@monk.io
+  defines: runnable
+  containers:
+    defines: containers
+    mailhog:
+      image: mailhog/mailhog:latest
+      ports:
+        - 0.0.0.0:1025:1025
+        - 0.0.0.0:8025:8025

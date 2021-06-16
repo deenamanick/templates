@@ -1,0 +1,144 @@
+namespace: /gitlab2
+
+common:
+  metadata:
+    defines: metadata
+    name: Gitlab CE
+    description: GitLab Community Edition docker image based on the Omnibus package
+    website: https://www.gitlab.com/
+    source: https://github.com/gitlabhq/gitlabhq
+    publisher: "monk.io"
+    icon: https://assets.monk.io/icons/gitlab-logo-gray-stacked-rgb.png
+  containers:
+    defines: containers
+    app:
+      image: docker.io/gitlab/gitlab-ce
+      image-tag: latest
+      ports:
+        - <- `0.0.0.0:${ssh-port}:22`
+        - <- `0.0.0.0:${http-port}:80`
+        - <- `0.0.0.0:${https-port}:443`
+        - <- `0.0.0.0:${registry-port}:5050`
+      paths:
+        - <- `${local-config-volume}:${container-config-volume}`
+        - <- `${local-logs-volume}:${container-logs-volume}`
+        - <- `${local-data-volume}:${container-data-volume}`
+      environment:
+        - <- `GITLAB_ROOT_PASSWORD=${gitlab-root-password}`
+        - <- `GITLAB_OMNIBUS_CONFIG=${gitlab-omnibus-config}`
+        - <- `GITLAB_SSH_PORT=${ssh-port}`
+        - <- `GITLAB_EXTERNAL_URL=${gitlab-external-url}`
+        - <- `GITLAB_REGISTRY_EXTERNAL_URL=${gitlab-registry-external-url}`
+        - <- `ENABLE_LETSENCRYPT=${enable-letsencrypt}`
+        - <- `EXTERNAL_URL=https://git.flyautomation.io:8080`
+  variables:
+    defines: variables
+    ssh-port:
+      type: int
+      value: 2222
+    http-port:
+      type: int
+      value: 8080
+    https-port:
+      type: int
+      value: 443
+    registry-port:
+      type: int
+      value: 5050
+    enable-letsencrypt:
+      type: int
+      value: 1
+    gitlab-external-url:
+      type: string
+      value: http://git.flyautomation.io:8080
+    gitlab-registry-external-url:
+      type: string
+      value: http://git.flyautomation.io:5050
+    local-config-volume:
+      type: string
+      value: <- `${moncc-volume-path}/gitlab-config`
+    local-logs-volume:
+      type: string
+      value: <- `${moncc-volume-path}/gitlab-logs`
+    local-data-volume:
+      type: string
+      value: <- `${moncc-volume-path}/gitlab-data`
+    container-config-volume:
+      type: string
+      value: /etc/gitlab
+    container-logs-volume:
+      type: string
+      value: /var/log/gitlab
+    container-data-volume:
+      type: string
+      value: /var/opt/gitlab
+    gitlab-root-password:
+      type: string
+      value: miani123
+    gitlab-public-ip:
+      type: string
+      value: <- ip-address-public
+    gitlab-omnibus-config:
+      type: string
+      value: |
+        # Setup Root Password
+        root_pass = ENV['GITLAB_ROOT_PASSWORD'];
+        gitlab_rails['initial_root_password'] = root_pass unless root_pass.to_s == '';
+
+        # Setup SSH port
+        gitlab_rails['gitlab_shell_ssh_port'] = ENV['GITLAB_SSH_PORT'].to_i;
+
+        # Setup NGINX
+        env_external_url = ENV['GITLAB_EXTERNAL_URL'];
+        nginx['listen_port'] = 80;
+        nginx['listen_https'] = false;
+        external_url 'http://34.72.137.131:8080';
+
+        # Setup Registry
+        env_registry_external_url = ENV['GITLAB_REGISTRY_EXTERNAL_URL'];
+        registry['enable'] = true;
+        registry_nginx['listen_port'] = 4567;
+        registry_nginx['listen_https'] = false;
+        registry_external_url 'http://34.72.137.131:5050';
+
+runner:
+  defines: runnable
+  metadata:
+    defines: metadata
+    name: Gitlab CE
+    description: GitLab Community Edition docker image based on the Omnibus package
+    website: https://www.gitlab.com/
+    source: https://github.com/gitlabhq/gitlabhq
+    publisher: "monk.io"
+    icon: https://assets.monk.io/icons/gitlab-logo-gray-stacked-rgb.png
+  containers:
+    defines: containers
+    runner:
+      image: docker.io/gitlab/gitlab-runner
+      image-tag: latest
+      paths:
+        - <- `get-hostname("gitlab/runner", "runner"):/etc/gitlab-runner:Z`
+        - <- `${docker-sock}:${docker-sock}`
+  variables:
+    defines: variables
+    docker-sock:
+      type: string
+      value: /var/run/docker.sock
+
+gitlab-ce:
+  defines: runnable
+  inherits: gitlab2/common
+
+runner-1:
+  defines: runnable
+  inherits: gitlab2/runner
+
+# runner-2:
+#   defines: runnable
+#   inherits: gitlab/runner
+
+gitlab-ce-2runners:
+  defines: process-group
+  runnable-list:
+    - /gitlab2/gitlab-ce
+    - /gitlab2/runner-1

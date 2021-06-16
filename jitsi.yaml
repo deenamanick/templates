@@ -1,0 +1,1879 @@
+namespace: /jitsi
+
+jitsi-meta:
+  metadata:
+    defines: metadata
+    name: Jitsi Meet
+    description: More secure, more flexible, and completely free video conferencing.
+    tags: messaging, video conferencing
+    publisher: "monk.io"
+    icon: https://assets.monk.io/icons/jitsi.png
+    email: maciej@monk.io
+
+web:
+  defines: runnable
+  inherits: /jitsi/jitsi-meta
+  containers:
+    defines: containers
+    web:
+      image: docker.io/jitsi/web:latest
+      ports:
+        - <- `${HTTP_PORT}:80`
+        - <- `${HTTPS_PORT}:443`
+      paths:
+        - <- `${CONFIG}/web:/config:Z`
+        - <- `${CONFIG}/transcripts:/usr/share/jitsi-meet/transcripts:Z`
+      environment:
+        - <- `JICOFO_COMPONENT_SECRET=${JICOFO_COMPONENT_SECRET}`
+        - <- `JICOFO_AUTH_PASSWORD=${JICOFO_AUTH_PASSWORD}`
+        - <- `JVB_AUTH_PASSWORD=${JVB_AUTH_PASSWORD}`
+        - <- `JIGASI_XMPP_PASSWORD=${JIGASI_XMPP_PASSWORD}`
+        - <- `JIBRI_RECORDER_PASSWORD=${JIBRI_RECORDER_PASSWORD}`
+        - <- `JIBRI_XMPP_PASSWORD=${JIBRI_XMPP_PASSWORD}`
+        - <- `CONFIG=${CONFIG}`
+        - <- `HTTP_PORT=${HTTP_PORT}`
+        - <- `HTTPS_PORT=${HTTPS_PORT}`
+        - <- `TZ=UTC`
+        - <- `ETHERPAD_TITLE="Video Chat"`
+        - <- `ETHERPAD_DEFAULT_PAD_TEXT="Welcome to Web Chat!\n\n"`
+        - <- `ETHERPAD_SKIN_NAME="colibris"`
+        - <- `ETHERPAD_SKIN_VARIANTS="super-light-toolbar super-light-editor light-background full-width-editor"`
+        - <- `XMPP_DOMAIN=${XMPP_DOMAIN}`
+        - <- `XMPP_SERVER=${XMPP_SERVER}`
+        - <- `XMPP_BOSH_URL_BASE=http://${XMPP_SERVER}:5280`
+        - <- `XMPP_AUTH_DOMAIN=auth.${XMPP_DOMAIN}`
+        - <- `XMPP_MUC_DOMAIN=muc.${XMPP_DOMAIN}`
+        - <- `XMPP_INTERNAL_MUC_DOMAIN=internal-muc.${XMPP_DOMAIN}`
+        - <- `XMPP_GUEST_DOMAIN=guest.${XMPP_DOMAIN}`
+        - <- `JVB_BREWERY_MUC=jvbbrewery`
+        - <- `JVB_AUTH_USER=jvb`
+        - <- `JVB_STUN_SERVERS=meet-jit-si-turnrelay.jitsi.net:443`
+        - <- `JVB_PORT=${JVB_PORT}`
+        - <- `JVB_TCP_HARVESTER_DISABLED=true`
+        - <- `JVB_TCP_PORT=${JVB_TCP_MAPPED_PORT}`
+        - <- `JVB_TCP_MAPPED_PORT=${JVB_TCP_MAPPED_PORT}`
+        - <- `JICOFO_AUTH_USER=focus`
+        - <- `JIGASI_XMPP_USER=jigasi`
+        - <- `JIGASI_BREWERY_MUC=jigasibrewery`
+        - <- `JIGASI_PORT_MIN=20000`
+        - <- `JIGASI_PORT_MAX=20050`
+        - <- `XMPP_RECORDER_DOMAIN=recorder.${XMPP_DOMAIN}`
+        - <- `JIBRI_RECORDER_USER=recorder`
+        - <- `JIBRI_RECORDING_DIR=/config/recordings`
+        - <- `JIBRI_XMPP_USER=jibri`
+        - <- `JIBRI_BREWERY_MUC=jibribrewery`
+        - <- `JIBRI_PENDING_TIMEOUT=90`
+        - <- `JIBRI_STRIP_DOMAIN_JID=muc`
+        - <- `JIBRI_LOGS_DIR=/config/logs`
+        - <- `RESTART_POLICY=unless-stopped`
+        - <- `ENABLE_GUESTS=1`
+        - <- `PUBLIC_URL=${PUBLIC_URL}`
+       
+  variables:
+    defines: variables
+    HTTP_PORT:
+      type: int
+      value: 8000
+    PUBLIC_URL:
+      type: string
+      value: "35.240.86.154"
+    HTTPS_PORT:
+      type: int
+      value: 8443
+    CONFIG:
+      type: string
+      value: "/jitsi-meet-cfg"
+    XMPP_DOMAIN:
+      type: string
+      value: <- get-hostname("jitsi/web", "web")
+    XMPP_SERVER:
+      type: string
+      value: <- get-hostname("jitsi/prosody", "prosody")
+    JVB_TCP_MAPPED_PORT:
+      type: int
+      value: 4443
+    JVB_PORT:
+      type: int
+      value: 10000
+    JICOFO_COMPONENT_SECRET:
+      type: string
+      value: "7b398c7090c615e1dee153e645df0f02"
+    JICOFO_AUTH_PASSWORD:
+      type: string
+      value: "7b398c7090c615e1dee153e645df0f02"
+    JVB_AUTH_PASSWORD:
+      type: string
+      value: "7b398c7090c615e1dee153e645df0f02"
+    JIGASI_XMPP_PASSWORD:
+      type: string
+      value: "7b398c7090c615e1dee153e645df0f02"
+    JIBRI_RECORDER_PASSWORD:
+      type: string
+      value: "7b398c7090c615e1dee153e645df0f02"
+    JIBRI_XMPP_PASSWORD:
+      type: string
+      value: "7b398c7090c615e1dee153e645df0f02"
+
+  files:
+    defines: files
+    d1:
+      path: /defaults/default
+      container: web
+      raw: true
+      contents: |
+                server {
+                  listen 80 default_server;
+                  
+                  {{ if .Env.ENABLE_IPV6 | default "1" | toBool }}
+                  listen [::]:80 default_server;
+                  {{ end }}
+
+                  {{ if .Env.ENABLE_HTTP_REDIRECT | default "0" | toBool }}
+                  return 301 https://$host$request_uri;
+                  {{ else }}
+                  include /config/nginx/meet.conf;
+                  {{ end }}
+                }
+
+                {{ if not (.Env.DISABLE_HTTPS | default "0" | toBool) }}
+                server {
+                  listen 443 ssl http2;
+                  
+                  {{ if .Env.ENABLE_IPV6 | default "1" | toBool }}
+                  listen [::]:443 ssl http2;
+                  {{ end }}
+
+                  include /config/nginx/ssl.conf;
+                  include /config/nginx/meet.conf;
+                }
+                {{ end }}
+    d2:
+      path: /defaults/ssl.conf
+      container: web
+      raw: true
+      contents: |
+                # session settings
+                ssl_session_timeout 1d;
+                ssl_session_cache shared:MozSSL:10m;  # about 40000 sessions
+                ssl_session_tickets off;
+
+                # ssl certs
+                {{ if .Env.ENABLE_LETSENCRYPT | default "0" | toBool }}
+                ssl_certificate /config/acme-certs/{{ .Env.LETSENCRYPT_DOMAIN }}/fullchain.pem;
+                ssl_certificate_key /config/acme-certs/{{ .Env.LETSENCRYPT_DOMAIN }}/key.pem;
+                {{ else }}
+                ssl_certificate /config/keys/cert.crt;
+                ssl_certificate_key /config/keys/cert.key;
+                {{ end }}
+
+                # protocols
+                # Mozilla Guideline v5.6, nginx 1.14.2, OpenSSL 1.1.1d, intermediate configuration, no OCSP
+                # https://ssl-config.mozilla.org/#server=nginx&version=1.14.2&config=intermediate&openssl=1.1.1d&ocsp=false&guideline=5.6
+                ssl_protocols TLSv1.2 TLSv1.3;
+                ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
+                ssl_prefer_server_ciphers off;
+
+                # Diffie-Hellman parameter for DHE cipher suites
+                ssl_dhparam /defaults/ffdhe2048.txt;
+
+                # HSTS (ngx_http_headers_module is required) (63072000 seconds)
+                {{ if .Env.ENABLE_HSTS | default "1" | toBool }}
+                add_header Strict-Transport-Security "max-age=63072000" always;
+                {{ end }}
+    d3:
+      path: /defaults/settings-config.js
+      container: web
+      raw: true
+      contents: |
+                {{ $DEPLOYMENTINFO_USERREGION := .Env.DEPLOYMENTINFO_USERREGION | default "" -}}
+                {{ $BRIDGE_CHANNEL := .Env.BRIDGE_CHANNEL | default "websocket" -}}
+                {{ $ENABLE_AUDIO_PROCESSING := .Env.ENABLE_AUDIO_PROCESSING | default "true" | toBool -}}
+                {{ $ENABLE_CALENDAR := .Env.ENABLE_CALENDAR | default "false" | toBool -}}
+                {{ $ENABLE_FILE_RECORDING_SERVICE := .Env.ENABLE_FILE_RECORDING_SERVICE | default "false" | toBool -}}
+                {{ $ENABLE_FILE_RECORDING_SERVICE_SHARING := .Env.ENABLE_FILE_RECORDING_SERVICE_SHARING | default "false" | toBool -}}
+                {{ $ENABLE_IPV6 := .Env.ENABLE_IPV6 | default "true" | toBool -}}
+                {{ $ENABLE_LIPSYNC := .Env.ENABLE_LIPSYNC | default "false" | toBool -}}
+                {{ $ENABLE_NO_AUDIO_DETECTION := .Env.ENABLE_NO_AUDIO_DETECTION | default "false" | toBool -}}
+                {{ $ENABLE_P2P := .Env.ENABLE_P2P | default "true" | toBool -}}
+                {{ $ENABLE_PREJOIN_PAGE := .Env.ENABLE_PREJOIN_PAGE | default "false" | toBool -}}
+                {{ $ENABLE_WELCOME_PAGE := .Env.ENABLE_WELCOME_PAGE | default "true" | toBool -}}
+                {{ $ENABLE_CLOSE_PAGE := .Env.ENABLE_CLOSE_PAGE | default "false" | toBool -}}
+                {{ $ENABLE_RECORDING := .Env.ENABLE_RECORDING | default "false" | toBool -}}
+                {{ $ENABLE_REMB := .Env.ENABLE_REMB | default "true" | toBool -}}
+                {{ $ENABLE_REQUIRE_DISPLAY_NAME := .Env.ENABLE_REQUIRE_DISPLAY_NAME | default "false" | toBool -}}
+                {{ $ENABLE_SIMULCAST := .Env.ENABLE_SIMULCAST | default "true" | toBool -}}
+                {{ $ENABLE_STATS_ID := .Env.ENABLE_STATS_ID | default "false" | toBool -}}
+                {{ $ENABLE_STEREO := .Env.ENABLE_STEREO | default "false" | toBool -}}
+                {{ $ENABLE_TALK_WHILE_MUTED := .Env.ENABLE_TALK_WHILE_MUTED | default "false" | toBool -}}
+                {{ $ENABLE_TCC := .Env.ENABLE_TCC | default "true" | toBool -}}
+                {{ $ENABLE_TRANSCRIPTIONS := .Env.ENABLE_TRANSCRIPTIONS | default "false" | toBool -}}
+                {{ $RESOLUTION := .Env.RESOLUTION | default "720" -}}
+                {{ $RESOLUTION_MIN := .Env.RESOLUTION_MIN | default "180" -}}
+                {{ $RESOLUTION_WIDTH := .Env.RESOLUTION_WIDTH | default "1280" -}}
+                {{ $RESOLUTION_WIDTH_MIN := .Env.RESOLUTION_WIDTH_MIN | default "320" -}}
+                {{ $START_AUDIO_ONLY := .Env.START_AUDIO_ONLY | default "false" | toBool -}}
+                {{ $START_AUDIO_MUTED := .Env.START_AUDIO_MUTED | default 10 -}}
+                {{ $DISABLE_AUDIO_LEVELS := .Env.DISABLE_AUDIO_LEVELS | default "false" | toBool -}}
+                {{ $ENABLE_NOISY_MIC_DETECTION := .Env.ENABLE_NOISY_MIC_DETECTION | default "true" | toBool -}}
+                {{ $START_VIDEO_MUTED := .Env.START_VIDEO_MUTED | default 10 -}}
+                {{ $TESTING_OCTO_PROBABILITY := .Env.TESTING_OCTO_PROBABILITY | default "0" -}}
+                {{ $TESTING_CAP_SCREENSHARE_BITRATE := .Env.TESTING_CAP_SCREENSHARE_BITRATE | default "1" -}}
+                {{ $XMPP_DOMAIN := .Env.XMPP_DOMAIN -}}
+                {{ $XMPP_RECORDER_DOMAIN := .Env.XMPP_RECORDER_DOMAIN -}}
+
+
+                // Video configuration.
+                //
+
+                if (!config.hasOwnProperty('constraints')) config.constraints = {};
+                if (!config.constraints.hasOwnProperty('video')) config.constraints.video = {};
+
+                config.resolution = {{ $RESOLUTION }};
+                config.constraints.video.height = { ideal: {{ $RESOLUTION }}, max: {{ $RESOLUTION }}, min: {{ $RESOLUTION_MIN }} };
+                config.constraints.video.width = { ideal: {{ $RESOLUTION_WIDTH }}, max: {{ $RESOLUTION_WIDTH }}, min: {{ $RESOLUTION_WIDTH_MIN }}};
+                config.disableSimulcast = {{ not $ENABLE_SIMULCAST }};
+                config.startVideoMuted = {{ $START_VIDEO_MUTED }};
+
+                {{ if .Env.START_BITRATE -}}
+                config.startBitrate = '{{ .Env.START_BITRATE }}';
+                {{ end -}}
+
+
+                // Audio configuration.
+                //
+
+                config.enableNoAudioDetection = {{ $ENABLE_NO_AUDIO_DETECTION }};
+                config.enableTalkWhileMuted = {{ $ENABLE_TALK_WHILE_MUTED }};
+                config.disableAP = {{ not $ENABLE_AUDIO_PROCESSING }};
+                config.stereo = {{ $ENABLE_STEREO }};
+                config.startAudioOnly = {{ $START_AUDIO_ONLY }};
+                config.startAudioMuted = {{ $START_AUDIO_MUTED }};
+                config.disableAudioLevels = {{ $DISABLE_AUDIO_LEVELS }};
+                config.enableNoisyMicDetection = {{ $ENABLE_NOISY_MIC_DETECTION }};
+
+
+                // Peer-to-Peer options.
+                //
+
+                if (!config.hasOwnProperty('p2p')) config.p2p = {};
+
+                config.p2p.enabled = {{ $ENABLE_P2P }};
+
+
+                // Etherpad
+                //
+
+                {{ if .Env.ETHERPAD_PUBLIC_URL -}}
+                config.etherpad_base = '{{ .Env.ETHERPAD_PUBLIC_URL }}';
+                {{ else if .Env.ETHERPAD_URL_BASE -}}
+                config.etherpad_base = '{{.Env.PUBLIC_URL}}/etherpad/p/';
+                {{ end -}}
+
+
+                // Recording.
+                //
+
+                {{ if $ENABLE_RECORDING -}}
+
+                config.hiddenDomain = '{{ $XMPP_RECORDER_DOMAIN }}';
+
+                // Whether to enable file recording or not
+                config.fileRecordingsEnabled = true;
+
+                // Whether to enable live streaming or not.
+                config.liveStreamingEnabled = true;
+
+                {{ if .Env.DROPBOX_APPKEY -}}
+                // Enable the dropbox integration.
+                if (!config.hasOwnProperty('dropbox')) config.dropbox = {};
+                config.dropbox.appKey = '{{ .Env.DROPBOX_APPKEY }}';
+                {{ if .Env.DROPBOX_REDIRECT_URI -}}
+                // A URL to redirect the user to, after authenticating
+                // by default uses:
+                // 'https://jitsi-meet.example.com/static/oauth.html'
+                config.dropbox.redirectURI = '{{ .Env.DROPBOX_REDIRECT_URI }}';
+                {{ end -}}
+                {{ end -}}
+
+                {{ if $ENABLE_FILE_RECORDING_SERVICE -}}
+                // When integrations like dropbox are enabled only that will be shown,
+                // by enabling fileRecordingsServiceEnabled, we show both the integrations
+                // and the generic recording service (its configuration and storage type
+                // depends on jibri configuration)
+                config.fileRecordingsServiceEnabled = true;
+                {{ end -}}
+                {{ if $ENABLE_FILE_RECORDING_SERVICE_SHARING -}}
+                // Whether to show the possibility to share file recording with other people
+                // (e.g. meeting participants), based on the actual implementation
+                // on the backend.
+                config.fileRecordingsServiceSharingEnabled = true;
+                {{ end -}}
+                {{ end -}}
+
+
+                // Analytics.
+                //
+
+                if (!config.hasOwnProperty('analytics')) config.analytics = {};
+
+                {{ if .Env.AMPLITUDE_ID -}}
+                // The Amplitude APP Key:
+                config.analytics.amplitudeAPPKey = '{{ .Env.AMPLITUDE_ID }}';
+                {{ end -}}
+
+                {{ if .Env.GOOGLE_ANALYTICS_ID -}}
+                // The Google Analytics Tracking ID:
+                config.analytics.googleAnalyticsTrackingId = '{{ .Env.GOOGLE_ANALYTICS_ID }}';
+                {{ end -}}
+
+                {{ if .Env.MATOMO_ENDPOINT -}}
+                // Matomo endpoint:
+                config.analytics.matomoEndpoint = '{{ .Env.MATOMO_ENDPOINT }}';
+                {{ end -}}
+
+                {{ if .Env.MATOMO_SITE_ID -}}
+                // Matomo site ID:
+                config.analytics.matomoSiteID = '{{ .Env.MATOMO_SITE_ID }}';
+                {{ end -}}
+
+                {{ if .Env.ANALYTICS_SCRIPT_URLS -}}
+                // Array of script URLs to load as lib-jitsi-meet "analytics handlers".
+                config.analytics.scriptURLs = [ '{{ join "','" (splitList "," .Env.ANALYTICS_SCRIPT_URLS) }}' ];
+                {{ end -}}
+
+                {{ if .Env.ANALYTICS_WHITELISTED_EVENTS -}}
+                config.analytics.whiteListedEvents = [ '{{ join "','" (splitList "," .Env.ANALYTICS_WHITELISTED_EVENTS) }}' ];
+                {{ end -}}
+
+                {{ if .Env.CALLSTATS_CUSTOM_SCRIPT_URL -}}
+                config.callStatsCustomScriptUrl = '{{ .Env.CALLSTATS_CUSTOM_SCRIPT_URL }}';
+                {{ end -}}
+
+                {{ if .Env.CALLSTATS_ID -}}
+                // To enable sending statistics to callstats.io you must provide the
+                // Application ID and Secret.
+                config.callStatsID = '{{ .Env.CALLSTATS_ID }}';
+                {{ end -}}
+
+                {{ if .Env.CALLSTATS_ID -}}
+                config.callStatsSecret = '{{ .Env.CALLSTATS_SECRET }}';
+                {{ end -}}
+
+                // Enables callstatsUsername to be reported as statsId and used
+                // by callstats as repoted remote id.
+                config.enableStatsID = {{ $ENABLE_STATS_ID }};
+
+
+                // Dial in/out services.
+                //
+
+                {{ if .Env.CONFCODE_URL -}}
+                config.dialInConfCodeUrl = '{{ .Env.CONFCODE_URL }}';
+                {{ end -}}
+
+                {{ if .Env.DIALIN_NUMBERS_URL -}}
+                config.dialInNumbersUrl = '{{ .Env.DIALIN_NUMBERS_URL }}';
+                {{ end -}}
+
+                {{ if .Env.DIALOUT_AUTH_URL -}}
+                config.dialOutAuthUrl = '{{ .Env.DIALOUT_AUTH_URL }}';
+                {{ end -}}
+
+                {{ if .Env.DIALOUT_CODES_URL -}}
+                config.dialOutCodesUrl = '{{ .Env.DIALOUT_CODES_URL }}';
+                {{ end -}}
+
+
+                // Calendar service integration.
+                //
+
+                config.enableCalendarIntegration = {{ $ENABLE_CALENDAR }};
+
+                {{ if .Env.GOOGLE_API_APP_CLIENT_ID -}}
+                config.googleApiApplicationClientID = '{{ .Env.GOOGLE_API_APP_CLIENT_ID }}';
+                {{ end -}}
+
+                {{ if .Env.MICROSOFT_API_APP_CLIENT_ID -}}
+                config.microsoftApiApplicationClientID = '{{ .Env.MICROSOFT_API_APP_CLIENT_ID }}';
+                {{ end -}}
+
+
+                // Invitation service.
+                //
+
+                {{ if .Env.INVITE_SERVICE_URL -}}
+                config.inviteServiceUrl = '{{ .Env.INVITE_SERVICE_URL }}';
+                {{ end -}}
+
+                {{ if .Env.PEOPLE_SEARCH_URL -}}
+                config.peopleSearchUrl = '{{ .Env.PEOPLE_SEARCH_URL }}';
+                config.peopleSearchQueryTypes = ['user','conferenceRooms'];
+                {{ end -}}
+
+
+                // Miscellaneous.
+                //
+
+                // Prejoin page.
+                config.prejoinPageEnabled = {{ $ENABLE_PREJOIN_PAGE }};
+
+                // Welcome page.
+                config.enableWelcomePage = {{ $ENABLE_WELCOME_PAGE }};
+
+                // Close page.
+                config.enableClosePage = {{ $ENABLE_CLOSE_PAGE }};
+
+                // Require users to always specify a display name.
+                config.requireDisplayName = {{ $ENABLE_REQUIRE_DISPLAY_NAME }};
+
+                // Chrome extension banner.
+                {{ if .Env.CHROME_EXTENSION_BANNER_JSON -}}
+                config.chromeExtensionBanner = {{ .Env.CHROME_EXTENSION_BANNER_JSON }};
+                {{ end -}}
+
+
+                // Advanced.
+                //
+
+                // Lipsync hack in jicofo, may not be safe.
+                config.enableLipSync = {{ $ENABLE_LIPSYNC }};
+
+                config.enableRemb = {{ $ENABLE_REMB }};
+                config.enableTcc = {{ $ENABLE_TCC }};
+
+                config.openBridgeChannel = '{{ $BRIDGE_CHANNEL }}';
+
+                // Enable IPv6 support.
+                config.useIPv6 = {{ $ENABLE_IPV6 }};
+
+                // Transcriptions (subtitles and buttons can be configured in interface_config)
+                config.transcribingEnabled = {{ $ENABLE_TRANSCRIPTIONS }};
+
+                {{ if .Env.BRANDING_DATA_URL -}}
+                // External API url used to receive branding specific information.
+                config.brandingDataUrl = '{{ .Env.BRANDING_DATA_URL }}';
+                {{ end -}}
+
+                {{ if .Env.TOKEN_AUTH_URL -}}
+                // Authenticate using external service or just focus external auth window if there is one already.
+                config.tokenAuthUrl = '{{ .Env.TOKEN_AUTH_URL }}';
+                {{ end -}}
+
+
+                // Deployment information.
+                //
+
+                if (!config.hasOwnProperty('deploymentInfo')) config.deploymentInfo = {};
+
+                {{ if .Env.DEPLOYMENTINFO_ENVIRONMENT -}}
+                config.deploymentInfo.environment = '{{ .Env.DEPLOYMENTINFO_ENVIRONMENT }}';
+                {{ end -}}
+
+                {{ if .Env.DEPLOYMENTINFO_ENVIRONMENT_TYPE -}}
+                config.deploymentInfo.envType = '{{ .Env.DEPLOYMENTINFO_ENVIRONMENT_TYPE }}';
+                {{ end -}}
+
+                {{ if $DEPLOYMENTINFO_USERREGION -}}
+                config.deploymentInfo.userRegion = '{{ $DEPLOYMENTINFO_USERREGION }}';
+                {{ end -}}
+
+
+                // Testing
+                //
+
+                if (!config.hasOwnProperty('testing')) config.testing = {};
+                if (!config.testing.hasOwnProperty('octo')) config.testing.octo = {};
+
+                config.testing.capScreenshareBitrate = {{ $TESTING_CAP_SCREENSHARE_BITRATE }};
+                config.testing.octo.probability = {{ $TESTING_OCTO_PROBABILITY }};
+    d4:
+      path: /defaults/system-config.js
+      container: web
+      raw: true
+      contents: |
+                {{ $CONFIG_EXTERNAL_CONNECT := .Env.CONFIG_EXTERNAL_CONNECT | default "false" | toBool -}}
+                {{ $ENABLE_AUTH := .Env.ENABLE_AUTH | default "false" | toBool -}}
+                {{ $ENABLE_GUESTS := .Env.ENABLE_GUESTS | default "false" | toBool -}}
+                {{ $ENABLE_SUBDOMAINS := .Env.ENABLE_SUBDOMAINS | default "false" | toBool -}}
+                {{ $ENABLE_XMPP_WEBSOCKET := .Env.ENABLE_XMPP_WEBSOCKET | default "1" | toBool -}}
+                {{ $JICOFO_AUTH_USER := .Env.JICOFO_AUTH_USER | default "focus" }}
+                {{ $PUBLIC_URL_DOMAIN := .Env.PUBLIC_URL | default "https://localhost:8443" | trimPrefix "https://" | trimSuffix "/" -}}
+                {{ $XMPP_AUTH_DOMAIN := .Env.XMPP_AUTH_DOMAIN -}}
+                {{ $XMPP_DOMAIN := .Env.XMPP_DOMAIN -}}
+                {{ $XMPP_MUC_DOMAIN := .Env.XMPP_MUC_DOMAIN -}}
+                {{ $XMPP_MUC_DOMAIN_PREFIX := (split "." .Env.XMPP_MUC_DOMAIN)._0  -}}
+
+                // Begin default config overrides.
+
+                if (!config.hasOwnProperty('hosts')) config.hosts = {};
+
+                config.hosts.domain = '{{ $XMPP_DOMAIN }}';
+                config.focusUserJid = '{{$JICOFO_AUTH_USER}}@{{$XMPP_AUTH_DOMAIN}}';
+
+                {{ if $ENABLE_SUBDOMAINS -}}
+                var subdomain = "<!--# echo var="subdomain" default="" -->";
+                if (subdomain) {
+                    subdomain = subdomain.substr(0,subdomain.length-1).split('.').join('_').toLowerCase() + '.';
+                }
+                config.hosts.muc = '{{ $XMPP_MUC_DOMAIN_PREFIX }}.'+subdomain+'{{ $XMPP_DOMAIN }}';
+                {{ else -}}
+                config.hosts.muc = '{{ $XMPP_MUC_DOMAIN }}';
+                {{ end -}}
+
+                {{ if $ENABLE_AUTH -}}
+                {{ if $ENABLE_GUESTS -}}
+                // When using authentication, domain for guest users.
+                config.hosts.anonymousdomain = '{{ .Env.XMPP_GUEST_DOMAIN }}';
+                {{ end -}}
+                // Domain for authenticated users. Defaults to <domain>.
+                config.hosts.authdomain = '{{ $XMPP_DOMAIN }}';
+                {{ end -}}
+
+                config.bosh = '/http-bind';
+                {{ if $ENABLE_XMPP_WEBSOCKET -}}
+                config.websocket = 'wss://{{ $PUBLIC_URL_DOMAIN }}/xmpp-websocket';
+                {{ end -}}
+
+                {{ if $CONFIG_EXTERNAL_CONNECT -}}
+                {{ if $ENABLE_SUBDOMAINS -}}
+                config.externalConnectUrl = '/<!--# echo var="subdir" default="" -->http-pre-bind';
+                {{ else -}}
+                config.externalConnectUrl = '/http-pre-bind';
+                {{ end -}}
+                {{ end -}}
+    d5:
+      path: /etc/cont-init.d/10-config
+      container: web
+      raw: true
+      contents: |
+                #!/usr/bin/with-contenv bash
+
+                # make our folders
+                mkdir -p \
+                    /config/{nginx/site-confs,keys} \
+                    /run \
+                    /var/lib/nginx/tmp/client_body \
+                    /var/tmp/nginx
+
+                # generate keys (maybe)
+                if [[ $DISABLE_HTTPS -ne 1 ]]; then
+                    if [[ $ENABLE_LETSENCRYPT -eq 1 ]]; then
+                        if [[ ! -f /config/acme.sh/acme.sh ]]; then
+                            mkdir /config/acme.sh
+                            pushd /opt
+                            sh ./acme.sh --install --home /config/acme.sh --accountemail $LETSENCRYPT_EMAIL
+                            popd
+                        fi
+                        if [[ ! -f /config/acme-certs/$LETSENCRYPT_DOMAIN/fullchain.pem ]]; then
+                            STAGING=""
+                            if [[ $LETSENCRYPT_USE_STAGING -eq 1 ]]; then
+                                STAGING="--staging"
+                            fi
+                            export LE_WORKING_DIR="/config/acme.sh"
+                            # TODO: move away from standalone mode to webroot mode.
+                            /config/acme.sh/acme.sh \
+                                $STAGING \
+                                --issue \
+                                --standalone \
+                                --pre-hook "if [[ -f /var/run/s6/services/nginx ]]; then s6-svc -d /var/run/s6/services/nginx; fi" \
+                                --post-hook "if [[ -f /var/run/s6/services/nginx ]]; then s6-svc -u /var/run/s6/services/nginx; fi" \
+                                -d $LETSENCRYPT_DOMAIN
+                            rc=$?
+                            if [[ $rc -eq 1 ]]; then
+                                echo "Failed to obtain a certificate from the Let's Encrypt CA."
+                                # this tries to get the user's attention and to spare the
+                                # authority's rate limit:
+                                sleep 15
+                                echo "Exiting."
+                                exit 1
+                            fi
+                            mkdir -p /config/acme-certs/$LETSENCRYPT_DOMAIN
+                            if ! /config/acme.sh/acme.sh \
+                                    --install-cert -d $LETSENCRYPT_DOMAIN \
+                                    --key-file /config/acme-certs/$LETSENCRYPT_DOMAIN/key.pem  \
+                                    --fullchain-file /config/acme-certs/$LETSENCRYPT_DOMAIN/fullchain.pem ; then
+                                echo "Failed to install certificate."
+                                # this tries to get the user's attention and to spare the
+                                # authority's rate limit:
+                                sleep 15
+                                echo "Exiting."
+                                exit 1
+                            fi
+                        fi
+                    else
+                        # use self-signed certs
+                        if [[ -f /config/keys/cert.key && -f /config/keys/cert.crt ]]; then
+                            echo "using keys found in /config/keys"
+                        else
+                            echo "generating self-signed keys in /config/keys, you can replace these with your own keys if required"
+                            SUBJECT="/C=US/ST=TX/L=Austin/O=jitsi.org/OU=Jitsi Server/CN=*"
+                            openssl req -new -x509 -days 3650 -nodes -out /config/keys/cert.crt -keyout /config/keys/cert.key -subj "$SUBJECT"
+                        fi
+                    fi
+                fi
+
+                # copy config files
+                tpl /defaults/nginx.conf > /config/nginx/nginx.conf
+
+                tpl /defaults/meet.conf > /config/nginx/meet.conf
+                if [[ -f /config/nginx/custom-meet.conf ]]; then
+                    cat /config/nginx/custom-meet.conf >> /config/nginx/meet.conf
+                fi
+
+                tpl /defaults/ssl.conf > /config/nginx/ssl.conf
+
+                tpl /defaults/default > /config/nginx/site-confs/default
+
+                cp /defaults/config.js /config/config.js
+                tpl /defaults/system-config.js >> /config/config.js
+                tpl /defaults/settings-config.js >> /config/config.js
+                if [[ -f /config/custom-config.js ]]; then
+                    cat /config/custom-config.js >> /config/config.js
+                fi
+
+                if [[ ! -f /config/interface_config.js ]]; then
+                    cp /defaults/interface_config.js /config/interface_config.js
+
+                    # It will remove parameter 'closedcaptions' from TOOLBAR_BUTTONS if ENABLE_TRANSCRIPTIONS is false,
+                    # because it enabled by default, but not supported out of the box.
+                    if [[ $ENABLE_TRANSCRIPTIONS -ne 1 && "$ENABLE_TRANSCRIPTIONS" != "true" ]]; then
+                        sed -i \
+                            -e "s#'closedcaptions', ##" \
+                            /config/interface_config.js
+                    fi
+                fi
+
+    d6:
+      path: /etc/services.d/cron/run
+      container: web
+      raw: true
+      contents: |
+                #!/usr/bin/with-contenv bash
+
+                if [[ $DISABLE_HTTPS -ne 1 ]] && \
+                  [[ $ENABLE_LETSENCRYPT -eq 1 ]]; then
+                    exec cron -f
+                else
+                    # if cron should not be started,
+                    # prevent s6 from restarting this script again and again
+                    s6-svc -O /var/run/s6/services/cron
+                fi
+    d7:
+      path: /etc/services.d/nginx/run
+      container: web
+      raw: true
+      contents: |
+                #!/usr/bin/with-contenv bash
+                exec nginx -c /config/nginx/nginx.conf
+
+
+    r2:
+      path: /defaults/nginx.conf
+      container: web
+      raw: true
+      contents: |
+                user www-data;
+                worker_processes {{ .Env.NGINX_WORKER_PROCESSES | default "4" }};
+                pid /run/nginx.pid;
+                include /etc/nginx/modules-enabled/*.conf;
+
+                events {
+                  worker_connections {{ .Env.NGINX_WORKER_CONNECTIONS | default "768" }};
+                  # multi_accept on;
+                }
+
+                http {
+
+                  ##
+                  # Basic Settings
+                  ##
+
+                  sendfile on;
+                  tcp_nopush on;
+                  tcp_nodelay on;
+                  keepalive_timeout 65;
+                  types_hash_max_size 2048;
+                  server_tokens off;
+
+                  # server_names_hash_bucket_size 64;
+                  # server_name_in_redirect off;
+
+                  client_max_body_size 0;
+
+                  resolver {{ .Env.NGINX_RESOLVER | default "127.0.0.11" }};
+
+                  include /etc/nginx/mime.types;
+                  types {
+                    # add support for wasm MIME type, that is required by specification and it is not part of default mime.types file
+                    application/wasm wasm;
+                  }
+                  default_type application/octet-stream;
+
+                  ##
+                  # Logging Settings
+                  ##
+
+                  access_log /dev/stdout;
+                  error_log /dev/stderr;
+
+                  ##
+                  # Gzip Settings
+                  ##
+
+                  gzip on;
+                  gzip_types text/plain text/css application/javascript application/json;
+                  gzip_vary on;
+                  gzip_min_length 860;
+
+                  # gzip_vary on;
+                  # gzip_proxied any;
+                  # gzip_comp_level 6;
+                  # gzip_buffers 16 8k;
+                  # gzip_http_version 1.1;
+                  # gzip_types text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript;
+
+                  ##
+                  # Virtual Host Configs
+                  ##
+                        include /config/nginx/site-confs/*;
+                }
+
+
+                daemon off;
+    r3:
+      path: /defaults/meet.conf
+      container: web
+      raw: true
+      contents: |
+                {{ $ENABLE_XMPP_WEBSOCKET := .Env.ENABLE_XMPP_WEBSOCKET | default "1" | toBool }}
+
+                server_name _;
+
+                client_max_body_size 0;
+
+                root /usr/share/jitsi-meet;
+
+                # ssi on with javascript for multidomain variables in config.js
+                ssi on;
+                ssi_types application/x-javascript application/javascript;
+
+                index index.html index.htm;
+                error_page 404 /static/404.html;
+
+                # Security headers
+                add_header X-Content-Type-Options nosniff;
+                add_header X-XSS-Protection "1; mode=block";
+
+                location = /config.js {
+                    alias /config/config.js;
+                }
+
+                location = /interface_config.js {
+                    alias /config/interface_config.js;
+                }
+
+                location = /external_api.js {
+                    alias /usr/share/jitsi-meet/libs/external_api.min.js;
+                }
+
+                # ensure all static content can always be found first
+                location ~ ^/(libs|css|static|images|fonts|lang|sounds|connection_optimization|.well-known)/(.*)$
+                {
+                    add_header 'Access-Control-Allow-Origin' '*';
+                    alias /usr/share/jitsi-meet/$1/$2;
+                }
+
+                # colibri (JVB) websockets
+                location ~ ^/colibri-ws/([a-zA-Z0-9-\.]+)/(.*) {
+                    proxy_pass http://$1:9090/colibri-ws/$1/$2$is_args$args;
+                    proxy_http_version 1.1;
+                    proxy_set_header Upgrade $http_upgrade;
+                    proxy_set_header Connection "upgrade";
+                    tcp_nodelay on;
+                }
+
+                # BOSH
+                location = /http-bind {
+                    proxy_pass {{ .Env.XMPP_BOSH_URL_BASE }}/http-bind;
+                    proxy_set_header X-Forwarded-For $remote_addr;
+                    proxy_set_header Host {{ .Env.XMPP_DOMAIN }};
+                }
+
+                {{ if $ENABLE_XMPP_WEBSOCKET }}
+                # xmpp websockets
+                location = /xmpp-websocket {
+                    proxy_pass {{ .Env.XMPP_BOSH_URL_BASE }}/xmpp-websocket;
+                    proxy_http_version 1.1;
+
+                    proxy_set_header Connection "upgrade";
+                    proxy_set_header Upgrade $http_upgrade;
+
+                    proxy_set_header Host {{ .Env.XMPP_DOMAIN }};
+                    proxy_set_header X-Forwarded-For $remote_addr;
+                    tcp_nodelay on;
+                }
+                {{ end }}
+
+                location ~ ^/([^/?&:'"]+)$ {
+                    try_files $uri @root_path;
+                }
+
+                location @root_path {
+                    rewrite ^/(.*)$ / break;
+                }
+
+                {{ if .Env.ETHERPAD_URL_BASE }}
+                # Etherpad-lite
+                location /etherpad/ {
+                    proxy_http_version 1.1;
+                    proxy_set_header Upgrade $http_upgrade;
+                    proxy_set_header Connection 'upgrade';
+                    proxy_set_header Host $host;
+                    proxy_cache_bypass $http_upgrade;
+
+                    proxy_pass {{ .Env.ETHERPAD_URL_BASE }}/;
+                    proxy_set_header X-Forwarded-For $remote_addr;
+                    proxy_buffering off;
+                    proxy_set_header Host {{ .Env.XMPP_DOMAIN }};
+                }
+                {{ end }}
+  depends:
+    defines: depends
+    wait-for:
+      runnables:
+        - /jitsi/prosody
+      timeout: 60
+
+prosody:
+  defines: runnable
+  inherits: /jitsi/jitsi-meta
+  containers:
+    defines: containers
+    prosody:
+      image: docker.io/jitsi/prosody:latest
+      ports:
+        - "5222:5222"
+        - "5347:5347"
+        - "5280:5280"
+      paths:
+        - <- `/jitsi-meet-cfg/prosody/config:/config:Z`
+        - <- `/jitsi-meet-cfg/prosody/prosody-plugins-custom:/prosody-plugins-custom:Z`
+      environment:
+        - <- `JICOFO_COMPONENT_SECRET=${JICOFO_COMPONENT_SECRET}`
+        - <- `JICOFO_AUTH_PASSWORD=${JICOFO_AUTH_PASSWORD}`
+        - <- `JVB_AUTH_PASSWORD=${JVB_AUTH_PASSWORD}`
+        - <- `JIGASI_XMPP_PASSWORD=${JIGASI_XMPP_PASSWORD}`
+        - <- `JIBRI_RECORDER_PASSWORD=${JIBRI_RECORDER_PASSWORD}`
+        - <- `JIBRI_XMPP_PASSWORD=${JIBRI_XMPP_PASSWORD}`
+        - <- `CONFIG=${CONFIG}`
+        - <- `HTTP_PORT=${HTTP_PORT}`
+        - <- `HTTPS_PORT=${HTTPS_PORT}`
+        - <- `TZ=UTC`
+        - <- `ETHERPAD_TITLE="Video Chat"`
+        - <- `ETHERPAD_DEFAULT_PAD_TEXT="Welcome to Web Chat!\n\n"`
+        - <- `ETHERPAD_SKIN_NAME="colibris"`
+        - <- `ETHERPAD_SKIN_VARIANTS="super-light-toolbar super-light-editor light-background full-width-editor"`
+        - <- `XMPP_DOMAIN=${XMPP_DOMAIN}`
+        - <- `XMPP_SERVER=${XMPP_SERVER}`
+        - <- `XMPP_BOSH_URL_BASE=http://${XMPP_SERVER}:5280`
+        - <- `XMPP_AUTH_DOMAIN=auth.${XMPP_DOMAIN}`
+        - <- `XMPP_MUC_DOMAIN=muc.${XMPP_DOMAIN}`
+        - <- `XMPP_INTERNAL_MUC_DOMAIN=internal-muc.${XMPP_DOMAIN}`
+        - <- `XMPP_GUEST_DOMAIN=guest.${XMPP_DOMAIN}`
+        - <- `JVB_BREWERY_MUC=jvbbrewery`
+        - <- `JVB_AUTH_USER=jvb`
+        - <- `JVB_STUN_SERVERS=meet-jit-si-turnrelay.jitsi.net:443`
+        - <- `JVB_PORT=${JVB_PORT}`
+        - <- `JVB_TCP_HARVESTER_DISABLED=true`
+        - <- `JVB_TCP_PORT=${JVB_TCP_MAPPED_PORT}`
+        - <- `JVB_TCP_MAPPED_PORT=${JVB_TCP_MAPPED_PORT}`
+        - <- `JICOFO_AUTH_USER=focus`
+        - <- `JIGASI_XMPP_USER=jigasi`
+        - <- `JIGASI_BREWERY_MUC=jigasibrewery`
+        - <- `JIGASI_PORT_MIN=20000`
+        - <- `JIGASI_PORT_MAX=20050`
+        - <- `XMPP_RECORDER_DOMAIN=recorder.${XMPP_DOMAIN}`
+        - <- `JIBRI_RECORDER_USER=recorder`
+        - <- `JIBRI_RECORDING_DIR=/config/recordings`
+        - <- `JIBRI_XMPP_USER=jibri`
+        - <- `JIBRI_BREWERY_MUC=jibribrewery`
+        - <- `JIBRI_PENDING_TIMEOUT=90`
+        - <- `JIBRI_STRIP_DOMAIN_JID=muc`
+        - <- `JIBRI_LOGS_DIR=/config/logs`
+        - <- `RESTART_POLICY=unless-stopped`
+  files:
+    defines: files
+    d1:
+      path: /defaults/conf.d/jitsi-meet.cfg.lua
+      container: prosody
+      mode: 0777
+      raw: true
+      contents: |
+                admins = {
+                    "{{ .Env.JICOFO_AUTH_USER }}@{{ .Env.XMPP_AUTH_DOMAIN }}",
+                    "{{ .Env.JVB_AUTH_USER }}@{{ .Env.XMPP_AUTH_DOMAIN }}"
+                }
+
+                plugin_paths = { "/prosody-plugins/", "/prosody-plugins-custom" }
+                http_default_host = "{{ .Env.XMPP_DOMAIN }}"
+
+                {{ $ENABLE_AUTH := .Env.ENABLE_AUTH | default "0" | toBool }}
+                {{ $ENABLE_GUEST_DOMAIN := and $ENABLE_AUTH (.Env.ENABLE_GUESTS | default "0" | toBool)}}
+                {{ $AUTH_TYPE := .Env.AUTH_TYPE | default "internal" }}
+                {{ $JWT_ASAP_KEYSERVER := .Env.JWT_ASAP_KEYSERVER | default "" }}
+                {{ $JWT_ALLOW_EMPTY := .Env.JWT_ALLOW_EMPTY | default "0" | toBool }}
+                {{ $JWT_AUTH_TYPE := .Env.JWT_AUTH_TYPE | default "token" }}
+                {{ $JWT_TOKEN_AUTH_MODULE := .Env.JWT_TOKEN_AUTH_MODULE | default "token_verification" }}
+                {{ $ENABLE_LOBBY := .Env.ENABLE_LOBBY | default "0" | toBool }}
+
+                {{ $ENABLE_XMPP_WEBSOCKET := .Env.ENABLE_XMPP_WEBSOCKET | default "1" | toBool }}
+                {{ $PUBLIC_URL := .Env.PUBLIC_URL | default "https://35.240.86.154:8443" -}}
+
+                {{ if and $ENABLE_AUTH (eq $AUTH_TYPE "jwt") .Env.JWT_ACCEPTED_ISSUERS }}
+                asap_accepted_issuers = { "{{ join "\",\"" (splitList "," .Env.JWT_ACCEPTED_ISSUERS) }}" }
+                {{ end }}
+
+                {{ if and $ENABLE_AUTH (eq $AUTH_TYPE "jwt") .Env.JWT_ACCEPTED_AUDIENCES }}
+                asap_accepted_audiences = { "{{ join "\",\"" (splitList "," .Env.JWT_ACCEPTED_AUDIENCES) }}" }
+                {{ end }}
+
+                consider_bosh_secure = true;
+
+                -- Deprecated in 0.12
+                -- https://github.com/bjc/prosody/commit/26542811eafd9c708a130272d7b7de77b92712de
+                {{ $XMPP_CROSS_DOMAINS := $PUBLIC_URL }}
+                {{ $XMPP_CROSS_DOMAIN := .Env.XMPP_CROSS_DOMAIN | default "" }}
+                {{ if eq $XMPP_CROSS_DOMAIN "true"}}
+                cross_domain_websocket = true
+                cross_domain_bosh = true
+                {{ else }}
+                {{ if not (eq $XMPP_CROSS_DOMAIN "false") }}
+                  {{ $XMPP_CROSS_DOMAINS = list $PUBLIC_URL (print "https://" .Env.XMPP_DOMAIN) .Env.XMPP_CROSS_DOMAIN | join "," }}
+                {{ end }}
+                cross_domain_websocket = { "{{ join "\",\"" (splitList "," $XMPP_CROSS_DOMAINS) }}" }
+                cross_domain_bosh = { "{{ join "\",\"" (splitList "," $XMPP_CROSS_DOMAINS) }}" }
+                {{ end }}
+
+                VirtualHost "{{ .Env.XMPP_DOMAIN }}"
+                {{ if $ENABLE_AUTH }}
+                  {{ if eq $AUTH_TYPE "jwt" }}
+                    authentication = "{{ $JWT_AUTH_TYPE }}"
+                    app_id = "{{ .Env.JWT_APP_ID }}"
+                    app_secret = "{{ .Env.JWT_APP_SECRET }}"
+                    allow_empty_token = {{ if $JWT_ALLOW_EMPTY }}true{{ else }}false{{ end }}
+                    {{ if $JWT_ASAP_KEYSERVER }}
+                    asap_key_server = "{{ .Env.JWT_ASAP_KEYSERVER }}"
+                    {{ end }}
+
+                    {{ else if eq $AUTH_TYPE "ldap" }}
+                    authentication = "cyrus"
+                    cyrus_application_name = "xmpp"
+                    allow_unencrypted_plain_auth = true
+                  {{ else if eq $AUTH_TYPE "internal" }}
+                    authentication = "internal_hashed"
+                  {{ end }}
+                {{ else }}
+                    -- https://github.com/jitsi/docker-jitsi-meet/pull/502#issuecomment-619146339
+                    {{ if $ENABLE_XMPP_WEBSOCKET }}
+                    authentication = "token"
+                    {{ else }}
+                    authentication = "anonymous"
+                    {{ end }}
+                    app_id = ""
+                    app_secret = ""
+                    allow_empty_token = true
+                {{ end }}
+                    ssl = {
+                        key = "/config/certs/{{ .Env.XMPP_DOMAIN }}.key";
+                        certificate = "/config/certs/{{ .Env.XMPP_DOMAIN }}.crt";
+                    }
+                    modules_enabled = {
+                        "bosh";
+                        {{ if $ENABLE_XMPP_WEBSOCKET }}
+                        "websocket";
+                        "smacks"; -- XEP-0198: Stream Management
+                        {{ end }}
+                        "pubsub";
+                        "ping";
+                        "speakerstats";
+                        "conference_duration";
+                        {{ if and $ENABLE_LOBBY (not $ENABLE_GUEST_DOMAIN) }}
+                        "muc_lobby_rooms";
+                        {{ end }}
+                        {{ if .Env.XMPP_MODULES }}
+                        "{{ join "\";\n\"" (splitList "," .Env.XMPP_MODULES) }}";
+                        {{ end }}
+                        {{ if and $ENABLE_AUTH (eq $AUTH_TYPE "ldap") }}
+                        "auth_cyrus";
+                        {{end}}
+                    }
+
+                    {{ if and $ENABLE_LOBBY (not $ENABLE_GUEST_DOMAIN) }}
+                    main_muc = "{{ .Env.XMPP_MUC_DOMAIN }}"
+                    lobby_muc = "lobby.{{ .Env.XMPP_DOMAIN }}"
+                    {{ if .Env.XMPP_RECORDER_DOMAIN }}
+                    muc_lobby_whitelist = { "{{ .Env.XMPP_RECORDER_DOMAIN }}" }
+                    {{ end }}
+                    {{ end }}
+
+                    speakerstats_component = "speakerstats.{{ .Env.XMPP_DOMAIN }}"
+                    conference_duration_component = "conferenceduration.{{ .Env.XMPP_DOMAIN }}"
+
+                    c2s_require_encryption = false
+
+                {{ if $ENABLE_GUEST_DOMAIN }}
+                VirtualHost "{{ .Env.XMPP_GUEST_DOMAIN }}"
+                    -- https://github.com/jitsi/docker-jitsi-meet/pull/502#issuecomment-619146339
+                    {{ if $ENABLE_XMPP_WEBSOCKET }}
+                    authentication = "token"
+                    {{ else }}
+                    authentication = "anonymous"
+                    {{ end }}
+                    app_id = ""
+                    app_secret = ""
+                    allow_empty_token = true
+
+                    c2s_require_encryption = false
+
+                    {{ if $ENABLE_LOBBY }}
+                    modules_enabled = {
+                        "muc_lobby_rooms";
+                    }
+
+                    main_muc = "{{ .Env.XMPP_MUC_DOMAIN }}"
+                    lobby_muc = "lobby.{{ .Env.XMPP_DOMAIN }}"
+                    {{ if .Env.XMPP_RECORDER_DOMAIN }}
+                    muc_lobby_whitelist = { "{{ .Env.XMPP_RECORDER_DOMAIN }}" }
+                    {{ end }}
+                    {{ end }}
+
+                {{ end }}
+
+                VirtualHost "{{ .Env.XMPP_AUTH_DOMAIN }}"
+                    ssl = {
+                        key = "/config/certs/{{ .Env.XMPP_AUTH_DOMAIN }}.key";
+                        certificate = "/config/certs/{{ .Env.XMPP_AUTH_DOMAIN }}.crt";
+                    }
+                    authentication = "internal_hashed"
+
+                {{ if .Env.XMPP_RECORDER_DOMAIN }}
+                VirtualHost "{{ .Env.XMPP_RECORDER_DOMAIN }}"
+                    modules_enabled = {
+                      "ping";
+                    }
+                    authentication = "internal_hashed"
+                {{ end }}
+
+                Component "{{ .Env.XMPP_INTERNAL_MUC_DOMAIN }}" "muc"
+                    storage = "memory"
+                    modules_enabled = {
+                        "ping";
+                        {{ if .Env.XMPP_INTERNAL_MUC_MODULES }}
+                        "{{ join "\";\n\"" (splitList "," .Env.XMPP_INTERNAL_MUC_MODULES) }}";
+                        {{ end }}
+                    }
+                    muc_room_locking = false
+                    muc_room_default_public_jids = true
+
+                Component "{{ .Env.XMPP_MUC_DOMAIN }}" "muc"
+                    storage = "memory"
+                    modules_enabled = {
+                        "muc_meeting_id";
+                        {{ if .Env.XMPP_MUC_MODULES }}
+                        "{{ join "\";\n\"" (splitList "," .Env.XMPP_MUC_MODULES) }}";
+                        {{ end }}
+                        {{ if and $ENABLE_AUTH (eq $AUTH_TYPE "jwt") }}
+                        "{{ $JWT_TOKEN_AUTH_MODULE }}";
+                        {{ end }}
+                    }
+                    muc_room_cache_size = 1000
+                    muc_room_locking = false
+                    muc_room_default_public_jids = true
+
+                Component "focus.{{ .Env.XMPP_DOMAIN }}"
+                    component_secret = "{{ .Env.JICOFO_COMPONENT_SECRET }}"
+
+                Component "speakerstats.{{ .Env.XMPP_DOMAIN }}" "speakerstats_component"
+                    muc_component = "{{ .Env.XMPP_MUC_DOMAIN }}"
+
+                Component "conferenceduration.{{ .Env.XMPP_DOMAIN }}" "conference_duration_component"
+                    muc_component = "{{ .Env.XMPP_MUC_DOMAIN }}"
+
+                {{ if $ENABLE_LOBBY }}
+                Component "lobby.{{ .Env.XMPP_DOMAIN }}" "muc"
+                    storage = "memory"
+                    restrict_room_creation = true
+                    muc_room_locking = false
+                    muc_room_default_public_jids = true
+                {{ end }}
+    d2:
+      path: /defaults/prosody.cfg.lua
+      container: prosody
+      mode: 0777
+      raw: true
+      contents: |
+                {{ $LOG_LEVEL := .Env.LOG_LEVEL | default "info" }}
+
+                -- Prosody Example Configuration File
+                --
+                -- Information on configuring Prosody can be found on our
+                -- website at http://prosody.im/doc/configure
+                --
+                -- Tip: You can check that the syntax of this file is correct
+                -- when you have finished by running: luac -p prosody.cfg.lua
+                -- If there are any errors, it will let you know what and where
+                -- they are, otherwise it will keep quiet.
+                --
+                -- The only thing left to do is rename this file to remove the .dist ending, and fill in the
+                -- blanks. Good luck, and happy Jabbering!
+
+
+                ---------- Server-wide settings ----------
+                -- Settings in this section apply to the whole server and are the default settings
+                -- for any virtual hosts
+
+                -- This is a (by default, empty) list of accounts that are admins
+                -- for the server. Note that you must create the accounts separately
+                -- (see http://prosody.im/doc/creating_accounts for info)
+                -- Example: admins = { "user1@example.com", "user2@example.net" }
+                admins = { }
+
+                -- Enable use of libevent for better performance under high load
+                -- For more information see: http://prosody.im/doc/libevent
+                --use_libevent = true;
+
+                -- This is the list of modules Prosody will load on startup.
+                -- It looks for mod_modulename.lua in the plugins folder, so make sure that exists too.
+                -- Documentation on modules can be found at: http://prosody.im/doc/modules
+                modules_enabled = {
+
+                  -- Generally required
+                    "roster"; -- Allow users to have a roster. Recommended ;)
+                    "saslauth"; -- Authentication for clients and servers. Recommended if you want to log in.
+                    "tls"; -- Add support for secure TLS on c2s/s2s connections
+                    "dialback"; -- s2s dialback support
+                    "disco"; -- Service discovery
+
+                  -- Not essential, but recommended
+                    "private"; -- Private XML storage (for room bookmarks, etc.)
+                    "vcard"; -- Allow users to set vCards
+
+                  -- These are commented by default as they have a performance impact
+                    --"privacy"; -- Support privacy lists
+                    --"compression"; -- Stream compression (Debian: requires lua-zlib module to work)
+
+                  -- Nice to have
+                    "version"; -- Replies to server version requests
+                    "uptime"; -- Report how long server has been running
+                    "time"; -- Let others know the time here on this server
+                    "ping"; -- Replies to XMPP pings with pongs
+                    "pep"; -- Enables users to publish their mood, activity, playing music and more
+                    "register"; -- Allow users to register on this server using a client and change passwords
+
+                  -- Admin interfaces
+                    "admin_adhoc"; -- Allows administration via an XMPP client that supports ad-hoc commands
+                    --"admin_telnet"; -- Opens telnet console interface on localhost port 5582
+
+                  -- HTTP modules
+                    --"bosh"; -- Enable BOSH clients, aka "Jabber over HTTP"
+                    --"http_files"; -- Serve static files from a directory over HTTP
+
+                  -- Other specific functionality
+                    "posix"; -- POSIX functionality, sends server to background, enables syslog, etc.
+                    --"groups"; -- Shared roster support
+                    --"announce"; -- Send announcement to all online users
+                    --"welcome"; -- Welcome users who register accounts
+                    --"watchregistrations"; -- Alert admins of registrations
+                    --"motd"; -- Send a message to users when they log in
+                    --"legacyauth"; -- Legacy authentication. Only used by some old clients and bots.
+                        {{ if .Env.GLOBAL_MODULES }}
+                        "{{ join "\";\n\"" (splitList "," .Env.GLOBAL_MODULES) }}";
+                        {{ end }}
+                };
+
+                https_ports = { }
+
+                -- These modules are auto-loaded, but should you want
+                -- to disable them then uncomment them here:
+                modules_disabled = {
+                  -- "offline"; -- Store offline messages
+                  -- "c2s"; -- Handle client connections
+                  "s2s"; -- Handle server-to-server connections
+                };
+
+                -- Disable account creation by default, for security
+                -- For more information see http://prosody.im/doc/creating_accounts
+                allow_registration = false;
+
+                daemonize = false;
+
+                pidfile = "/config/data/prosody.pid";
+
+                -- Force clients to use encrypted connections? This option will
+                -- prevent clients from authenticating unless they are using encryption.
+
+                c2s_require_encryption = false
+
+                -- Force certificate authentication for server-to-server connections?
+                -- This provides ideal security, but requires servers you communicate
+                -- with to support encryption AND present valid, trusted certificates.
+                -- NOTE: Your version of LuaSec must support certificate verification!
+                -- For more information see http://prosody.im/doc/s2s#security
+
+                s2s_secure_auth = false
+
+                -- Many servers don't support encryption or have invalid or self-signed
+                -- certificates. You can list domains here that will not be required to
+                -- authenticate using certificates. They will be authenticated using DNS.
+
+                --s2s_insecure_domains = { "gmail.com" }
+
+                -- Even if you leave s2s_secure_auth disabled, you can still require valid
+                -- certificates for some domains by specifying a list here.
+
+                --s2s_secure_domains = { "jabber.org" }
+
+                -- Select the authentication backend to use. The 'internal' providers
+                -- use Prosody's configured data storage to store the authentication data.
+                -- To allow Prosody to offer secure authentication mechanisms to clients, the
+                -- default provider stores passwords in plaintext. If you do not trust your
+                -- server please see http://prosody.im/doc/modules/mod_auth_internal_hashed
+                -- for information about using the hashed backend.
+
+                authentication = "internal_hashed"
+
+                -- Select the storage backend to use. By default Prosody uses flat files
+                -- in its configured data directory, but it also supports more backends
+                -- through modules. An "sql" backend is included by default, but requires
+                -- additional dependencies. See http://prosody.im/doc/storage for more info.
+
+                --storage = "sql" -- Default is "internal" (Debian: "sql" requires one of the
+                -- lua-dbi-sqlite3, lua-dbi-mysql or lua-dbi-postgresql packages to work)
+
+                -- For the "sql" backend, you can uncomment *one* of the below to configure:
+                --sql = { driver = "SQLite3", database = "prosody.sqlite" } -- Default. 'database' is the filename.
+                --sql = { driver = "MySQL", database = "prosody", username = "prosody", password = "secret", host = "localhost" }
+                --sql = { driver = "PostgreSQL", database = "prosody", username = "prosody", password = "secret", host = "localhost" }
+
+                -- Logging configuration
+                -- For advanced logging see http://prosody.im/doc/logging
+                --
+                -- Debian:
+                --  Logs info and higher to /var/log
+                --  Logs errors to syslog also
+                log = {
+                  { levels = {min = "{{ $LOG_LEVEL }}"}, to = "console"};
+                }
+
+                {{ if .Env.GLOBAL_CONFIG }}
+                {{ join "\n" (splitList "\\n" .Env.GLOBAL_CONFIG) }}
+                {{ end }}
+
+                -- Enable use of native prosody 0.11 support for epoll over select
+                network_backend = "epoll";
+                -- Set the TCP backlog to 511 since the kernel rounds it up to the next power of 2: 512.
+                network_settings = {
+                  tcp_backlog = 511;
+                }
+
+                component_interface = { "*" }
+
+                data_path = "/config/data"
+
+                smacks_max_unacked_stanzas = 5;
+                smacks_hibernation_time = 60;
+                smacks_max_hibernated_sessions = 1;
+                smacks_max_old_sessions = 1;
+
+                Include "conf.d/*.cfg.lua"
+
+    d3:
+      path: /defaults/saslauthd.conf
+      container: prosody
+      mode: 0777
+      raw: true
+      contents: |
+                {{ if eq (.Env.AUTH_TYPE | default "internal") "ldap" }}
+                ldap_servers: {{ .Env.LDAP_URL }}
+                ldap_search_base: {{ .Env.LDAP_BASE }}
+                {{ if .Env.LDAP_BINDDN | default "" }}
+                ldap_bind_dn: {{ .Env.LDAP_BINDDN }}
+                ldap_bind_pw: {{ .Env.LDAP_BINDPW }}
+                {{ end }}
+                ldap_filter: {{ .Env.LDAP_FILTER | default "uid=%u" }}
+                ldap_version: {{ .Env.LDAP_VERSION | default "3" }}
+                ldap_auth_method: {{ .Env.LDAP_AUTH_METHOD | default "bind" }}
+                  {{ if .Env.LDAP_USE_TLS | default "0" | toBool }}
+                ldap_tls_key: /config/certs/{{ .Env.XMPP_DOMAIN }}.key
+                ldap_tls_cert: /config/certs/{{ .Env.XMPP_DOMAIN }}.crt
+                    {{ if .Env.LDAP_TLS_CHECK_PEER | default "0" | toBool }}
+                ldap_tls_check_peer: yes
+                ldap_tls_cacert_file: {{ .Env.LDAP_TLS_CACERT_FILE | default "/etc/ssl/certs/ca-certificates.crt" }}
+                ldap_tls_cacert_dir: {{ .Env.LDAP_TLS_CACERT_DIR | default "/etc/ssl/certs" }}
+                    {{ end }}
+                    {{ if .Env.LDAP_TLS_CIPHERS }}
+                ldap_tls_ciphers: {{ .Env.LDAP_TLS_CIPHERS }}
+                    {{ end }}
+                  {{ end }}
+                {{ end }}
+                {{ if .Env.LDAP_START_TLS | default "0" | toBool }}
+                ldap_start_tls: yes
+                {{ end }}
+
+    d4:
+      path: /etc/cont-init.d/10-config
+      container: prosody
+      mode: 0777
+      raw: true
+      contents: |
+                #!/usr/bin/with-contenv bash
+
+                if [[ ! -f /etc/saslauthd.conf ]]; then
+                  tpl /defaults/saslauthd.conf > /etc/saslauthd.conf
+                  mkdir -pm777 /var/run/saslauthd
+                  adduser prosody sasl
+                  echo >> /etc/ldap/ldap.conf "TLS_REQCERT allow"
+                fi
+
+                PROSODY_CFG="/config/prosody.cfg.lua"
+
+                if [[ ! -d /config/data ]]; then
+                    mkdir -pm 750 /config/data
+                fi
+
+                if [[ "$(stat -c %U /config)" != "prosody" ]]; then
+                    chown -R prosody /config
+                fi
+
+                if [[ "$(stat -c %U /prosody-plugins)" != "prosody" ]]; then
+                    chown -R prosody /prosody-plugins
+                fi
+
+                if [[ "$(stat -c %U /prosody-plugins-custom)" != "prosody" ]]; then
+                    chown -R prosody /prosody-plugins-custom
+                fi
+
+                cp -r /defaults/* /config
+                tpl /defaults/prosody.cfg.lua > $PROSODY_CFG
+                tpl /defaults/conf.d/jitsi-meet.cfg.lua > /config/conf.d/jitsi-meet.cfg.lua
+
+                if [[ -z $JICOFO_COMPONENT_SECRET || -z $JICOFO_AUTH_PASSWORD ]]; then
+                    echo 'FATAL ERROR: Jicofo component secret and auth password must be set'
+                    exit 1
+                fi
+
+                prosodyctl --config $PROSODY_CFG register $JICOFO_AUTH_USER $XMPP_AUTH_DOMAIN $JICOFO_AUTH_PASSWORD
+
+                if [[ -z $JVB_AUTH_PASSWORD ]]; then
+                    echo 'FATAL ERROR: JVB auth password must be set'
+                    exit 1
+                fi
+
+                OLD_JVB_AUTH_PASSWORD=passw0rd
+                if [[ "$JVB_AUTH_PASSWORD" == "$OLD_JVB_AUTH_PASSWORD" ]]; then
+                    echo 'FATAL ERROR: JVB auth password must be changed, check the README'
+                    exit 1
+                fi
+
+                prosodyctl --config $PROSODY_CFG register $JVB_AUTH_USER $XMPP_AUTH_DOMAIN $JVB_AUTH_PASSWORD
+
+                if [[ ! -z $JIBRI_XMPP_USER ]] && [[ ! -z $JIBRI_XMPP_PASSWORD ]]; then
+                    OLD_JIBRI_XMPP_PASSWORD=passw0rd
+                    if [[ "$JIBRI_XMPP_PASSWORD" == "$OLD_JIBRI_XMPP_PASSWORD" ]]; then
+                        echo 'FATAL ERROR: Jibri auth password must be changed, check the README'
+                        exit 1
+                    fi
+                    prosodyctl --config $PROSODY_CFG register $JIBRI_XMPP_USER $XMPP_AUTH_DOMAIN $JIBRI_XMPP_PASSWORD
+                fi
+
+                if [[ ! -z $JIBRI_RECORDER_USER ]] && [[ ! -z $JIBRI_RECORDER_PASSWORD ]]; then
+                    OLD_JIBRI_RECORDER_PASSWORD=passw0rd
+                    if [[ "$JIBRI_RECORDER_PASSWORD" == "$OLD_JIBRI_RECORDER_PASSWORD" ]]; then
+                        echo 'FATAL ERROR: Jibri recorder password must be changed, check the README'
+                        exit 1
+                    fi
+                    prosodyctl --config $PROSODY_CFG register $JIBRI_RECORDER_USER $XMPP_RECORDER_DOMAIN $JIBRI_RECORDER_PASSWORD
+                fi
+
+                if [[ ! -z $JIGASI_XMPP_USER ]] && [[ ! -z $JIGASI_XMPP_PASSWORD ]]; then
+                    OLD_JIGASI_XMPP_PASSWORD=passw0rd
+                    if [[ "$JIGASI_XMPP_PASSWORD" == "$OLD_JIGASI_XMPP_PASSWORD" ]]; then
+                        echo 'FATAL ERROR: Jigasi auth password must be changed, check the README'
+                        exit 1
+                    fi
+                    prosodyctl --config $PROSODY_CFG register $JIGASI_XMPP_USER $XMPP_AUTH_DOMAIN $JIGASI_XMPP_PASSWORD
+                fi
+
+                mkdir -p /config/certs
+
+                if [[ ! -f /config/certs/$XMPP_DOMAIN.crt ]]; then
+                    # echo for using all default values
+                    echo | prosodyctl --config $PROSODY_CFG cert generate $XMPP_DOMAIN
+                fi
+
+                if [[ ! -f /config/certs/$XMPP_AUTH_DOMAIN.crt ]]; then
+                    # echo for using all default values
+                    echo | prosodyctl --config $PROSODY_CFG cert generate $XMPP_AUTH_DOMAIN
+                fi
+
+                # certs will be created in /config/data
+                mv /config/data/*.{crt,key} /config/certs/ || true
+                rm -f /config/data/*.cnf
+    d5:
+      path: /etc/sasl/xmpp.conf
+      container: prosody
+      raw: true
+      contents: |
+                pwcheck_method: saslauthd
+                mech_list: PLAIN
+    d6:
+      path: /etc/services.d/10-saslauthd/run
+      container: prosody
+      raw: true
+      contents: |
+                #!/usr/bin/with-contenv bash
+                exec s6-setuidgid root saslauthd -a ldap -O /etc/saslauthd.conf -c -m /var/run/saslauthd -n 5 -d
+    d7:
+      path: /etc/services.d/prosody/run
+      container: prosody
+      raw: true
+      contents: |
+                #!/usr/bin/with-contenv bash
+                exec s6-setuidgid prosody prosody --config /config/prosody.cfg.lua
+
+  variables:
+    defines: variables
+    HTTP_PORT:
+      type: int
+      value: 8000
+    HTTPS_PORT:
+      type: int
+      value: 8443
+    CONFIG:
+      type: string
+      value: "/jitsi-meet-cfg"
+    XMPP_DOMAIN:
+      type: string
+      value: "templates-local-jitsi-web-web"
+    XMPP_SERVER:
+      type: string
+      value: <- get-hostname("jitsi/prosody", "prosody")
+    JVB_TCP_MAPPED_PORT:
+      type: int
+      value: 4443
+    JVB_PORT:
+      type: int
+      value: 10000
+    JICOFO_COMPONENT_SECRET:
+      type: string
+      value: "7b398c7090c615e1dee153e645df0f02"
+    JICOFO_AUTH_PASSWORD:
+      type: string
+      value: "7b398c7090c615e1dee153e645df0f02"
+    JVB_AUTH_PASSWORD:
+      type: string
+      value: "7b398c7090c615e1dee153e645df0f02"
+    JIGASI_XMPP_PASSWORD:
+      type: string
+      value: "7b398c7090c615e1dee153e645df0f02"
+    JIBRI_RECORDER_PASSWORD:
+      type: string
+      value: "7b398c7090c615e1dee153e645df0f02"
+    JIBRI_XMPP_PASSWORD:
+      type: string
+      value: "7b398c7090c615e1dee153e645df0f02"
+
+
+jicofo:
+  defines: runnable
+  inherits: /jitsi/jitsi-meta
+  containers:
+    defines: containers
+    jicofo:
+      image: docker.io/jitsi/jicofo:latest
+      paths:
+        - <- `${CONFIG}/jicofo:/config:Z`
+      environment:
+        - <- `JICOFO_COMPONENT_SECRET=${JICOFO_COMPONENT_SECRET}`
+        - <- `JICOFO_AUTH_PASSWORD=${JICOFO_AUTH_PASSWORD}`
+        - <- `JVB_AUTH_PASSWORD=${JVB_AUTH_PASSWORD}`
+        - <- `JIGASI_XMPP_PASSWORD=${JIGASI_XMPP_PASSWORD}`
+        - <- `JIBRI_RECORDER_PASSWORD=${JIBRI_RECORDER_PASSWORD}`
+        - <- `JIBRI_XMPP_PASSWORD=${JIBRI_XMPP_PASSWORD}`
+        - <- `TZ=UTC`
+        - <- `XMPP_DOMAIN=${XMPP_DOMAIN}`
+        - <- `XMPP_SERVER=${XMPP_SERVER}`
+        - <- `XMPP_BOSH_URL_BASE=http://${XMPP_SERVER}:5280`
+        - <- `XMPP_AUTH_DOMAIN=auth.${XMPP_DOMAIN}`
+        - <- `XMPP_MUC_DOMAIN=muc.${XMPP_DOMAIN}`
+        - <- `XMPP_INTERNAL_MUC_DOMAIN=internal-muc.${XMPP_DOMAIN}`
+        - <- `XMPP_GUEST_DOMAIN=guest.${XMPP_DOMAIN}`
+        - <- `JVB_BREWERY_MUC=jvbbrewery`
+        - <- `JICOFO_AUTH_USER=focus`
+        - <- `JIGASI_BREWERY_MUC=jigasibrewery`
+        - <- `JIBRI_BREWERY_MUC=jibribrewery`
+        - <- `JIBRI_PENDING_TIMEOUT=90`
+  files:
+    defines: files
+    d1:
+      path: /etc/services.d/jicofo/run
+      container: jicofo
+      mode: 0777
+      raw: true
+      contents: |
+                #!/usr/bin/with-contenv bash
+                JAVA_SYS_PROPS="-Dnet.java.sip.communicator.SC_HOME_DIR_LOCATION=/ -Dnet.java.sip.communicator.SC_HOME_DIR_NAME=config -Djava.util.logging.config.file=/config/logging.properties"
+                DAEMON=/usr/share/jicofo/jicofo.sh
+                DAEMON_DIR=/usr/share/jicofo/
+                DAEMON_OPTS="--domain=$XMPP_DOMAIN --host=$XMPP_SERVER --secret=$JICOFO_COMPONENT_SECRET --user_name=$JICOFO_AUTH_USER --user_domain=$XMPP_AUTH_DOMAIN --user_password=$JICOFO_AUTH_PASSWORD"
+                exec s6-setuidgid jicofo /bin/bash -c "cd $DAEMON_DIR; JAVA_SYS_PROPS=\"$JAVA_SYS_PROPS\" exec $DAEMON $DAEMON_OPTS"
+    
+    d2:
+      path: /etc/cont-init.d/10-config
+      container: jicofo
+      mode: 0777
+      raw: true
+      contents: |
+                #!/usr/bin/with-contenv bash
+
+                if [[ -z $JICOFO_COMPONENT_SECRET || -z $JICOFO_AUTH_PASSWORD ]]; then
+                    echo 'FATAL ERROR: Jicofo component secret and auth password must be set'
+                    exit 1
+                fi
+
+                OLD_JICOFO_COMPONENT_SECRET=s3cr37
+                if [[ "$JICOFO_COMPONENT_SECRET" == "$OLD_JICOFO_COMPONENT_SECRET" ]]; then
+                    echo 'FATAL ERROR: Jicofo component secret must be changed, check the README'
+                    exit 1
+                fi
+
+                OLD_JICOFO_AUTH_PASSWORD=passw0rd
+                if [[ "$JICOFO_AUTH_PASSWORD" == "$OLD_JICOFO_AUTH_PASSWORD" ]]; then
+                    echo 'FATAL ERROR: Jicofo auth password must be changed, check the README'
+                    exit 1
+                fi
+
+                tpl /defaults/sip-communicator.properties > /config/sip-communicator.properties
+                if [[ -f /config/custom-sip-communicator.properties ]]; then
+                    cat /config/custom-sip-communicator.properties >> /config/sip-communicator.properties
+                fi
+
+                if [[ ! -f /config/logging.properties ]]; then
+                    cp /defaults/logging.properties /config
+                fi
+
+                chown -R jicofo:jitsi /config
+
+    d3:
+      path: /defaults/logging.properties
+      container: jicofo
+      mode: 0777
+      raw: true
+      contents: |
+                handlers= java.util.logging.ConsoleHandler
+                java.util.logging.ConsoleHandler.level = ALL
+                java.util.logging.ConsoleHandler.formatter = net.java.sip.communicator.util.ScLogFormatter
+                net.java.sip.communicator.util.ScLogFormatter.programname=Jicofo
+                .level=INFO
+                net.sf.level=SEVERE
+                net.java.sip.communicator.plugin.reconnectplugin.level=FINE
+                org.ice4j.level=SEVERE
+                org.jitsi.impl.neomedia.level=SEVERE
+                # Do not worry about missing strings
+                net.java.sip.communicator.service.resources.AbstractResourcesService.level=SEVERE
+                #net.java.sip.communicator.service.protocol.level=ALL
+                # Enable debug packets logging
+                #org.jitsi.impl.protocol.xmpp.level=FINE
+    d4:
+      path: /defaults/sip-communicator.properties
+      container: jicofo
+      mode: 0777
+      raw: true
+      contents: |
+                org.jitsi.jicofo.ALWAYS_TRUST_MODE_ENABLED=true
+                org.jitsi.jicofo.BRIDGE_MUC={{ .Env.JVB_BREWERY_MUC }}@{{ .Env.XMPP_INTERNAL_MUC_DOMAIN }}
+
+                {{ if and .Env.JIBRI_BREWERY_MUC .Env.JIBRI_PENDING_TIMEOUT }}
+                org.jitsi.jicofo.jibri.BREWERY={{ .Env.JIBRI_BREWERY_MUC}}@{{ .Env.XMPP_INTERNAL_MUC_DOMAIN }}
+                org.jitsi.jicofo.jibri.PENDING_TIMEOUT={{ .Env.JIBRI_PENDING_TIMEOUT }}
+                {{ end }}
+
+                {{ if and .Env.JIGASI_SIP_URI .Env.JIGASI_BREWERY_MUC }}
+                org.jitsi.jicofo.jigasi.BREWERY={{ .Env.JIGASI_BREWERY_MUC}}@{{ .Env.XMPP_INTERNAL_MUC_DOMAIN }}
+                {{ end }}
+
+                {{ if .Env.JICOFO_RESERVATION_REST_BASE_URL }}
+                org.jitsi.impl.reservation.rest.BASE_URL={{ .Env.JICOFO_RESERVATION_REST_BASE_URL }}
+                {{ end }}
+
+                {{ if .Env.JICOFO_ENABLE_HEALTH_CHECKS | default "0" | toBool }}
+                org.jitsi.jicofo.health.ENABLE_HEALTH_CHECKS=true
+                {{ end }}
+
+                {{ if .Env.XMPP_MUC_DOMAIN }}
+                org.jitsi.jicofo.XMPP_MUC_COMPONENT_PREFIX={{ first (splitList "." .Env.XMPP_MUC_DOMAIN) }}
+                {{ end }}
+
+                {{ $ENABLE_AUTH := .Env.ENABLE_AUTH | default "0" | toBool }}
+                {{ $AUTH_TYPE := .Env.AUTH_TYPE | default "internal" }}
+
+                {{ if $ENABLE_AUTH }}
+                  {{ if eq $AUTH_TYPE "jwt" }}
+                org.jitsi.jicofo.auth.URL=EXT_JWT:{{ .Env.XMPP_DOMAIN }}
+                  {{ else }}
+                org.jitsi.jicofo.auth.URL=XMPP:{{ .Env.XMPP_DOMAIN }}
+                  {{ end }}
+                {{ end }}
+
+  depends:
+    defines: depends
+    wait-for:
+      runnables:
+        - /jitsi/prosody
+      timeout: 60
+
+  variables:
+    defines: variables
+    CONFIG:
+      type: string
+      value: "/jitsi-meet-cfg"
+    XMPP_DOMAIN:
+      type: string
+      value: <- get-hostname("jitsi/web", "web")
+    XMPP_SERVER:
+      type: string
+      value: <- get-hostname("jitsi/prosody", "prosody")
+    JICOFO_COMPONENT_SECRET:
+      type: string
+      value: "7b398c7090c615e1dee153e645df0f02"
+    JICOFO_AUTH_PASSWORD:
+      type: string
+      value: "7b398c7090c615e1dee153e645df0f02"
+    JVB_AUTH_PASSWORD:
+      type: string
+      value: "7b398c7090c615e1dee153e645df0f02"
+    JIGASI_XMPP_PASSWORD:
+      type: string
+      value: "7b398c7090c615e1dee153e645df0f02"
+    JIBRI_RECORDER_PASSWORD:
+      type: string
+      value: "7b398c7090c615e1dee153e645df0f02"
+    JIBRI_XMPP_PASSWORD:
+      type: string
+      value: "7b398c7090c615e1dee153e645df0f02"
+
+    # Video bridge
+jvb:
+  defines: runnable
+  inherits: /jitsi/jitsi-meta
+  containers:
+    defines: containers
+    jvb:
+      image: docker.io/jitsi/jvb:latest
+      ports:
+        - <- `${JVB_PORT}:${JVB_PORT}/udp`
+        - <- `${JVB_TCP_PORT}:${JVB_TCP_PORT}`
+      paths:
+        - <- `${CONFIG}/jvb:/config:Z`
+      environment:
+        - <- `XMPP_AUTH_DOMAIN=auth.${XMPP_DOMAIN}`
+        - <- `XMPP_INTERNAL_MUC_DOMAIN=internal-muc.${XMPP_DOMAIN}`
+        - <- `XMPP_SERVER=${XMPP_SERVER}`
+        - <- `JVB_AUTH_USER=jvb`
+        - <- `JVB_AUTH_PASSWORD=${JVB_AUTH_PASSWORD}`
+        - <- `JVB_BREWERY_MUC=jvbbrewery`
+        - <- `JVB_PORT=${JVB_PORT}`
+        - <- `JVB_TCP_HARVESTER_DISABLED=true`
+        - <- `JVB_TCP_PORT=${JVB_TCP_PORT}`
+        - <- `JVB_TCP_MAPPED_PORT=${JVB_TCP_MAPPED_PORT}`
+        - <- `JVB_STUN_SERVERS=meet-jit-si-turnrelay.jitsi.net:443`
+        - <- `TZ=UTC`
+        - <- `PUBLIC_URL=35.240.86.154`
+  files:
+    defines: files
+    d1:
+      path: /etc/services.d/jvb/run
+      container: jvb
+      mode: 0777
+      raw: true
+      contents: |
+                #!/usr/bin/with-contenv bash
+
+                export JAVA_SYS_PROPS="-Dnet.java.sip.communicator.SC_HOME_DIR_LOCATION=/ -Dnet.java.sip.communicator.SC_HOME_DIR_NAME=config -Djava.util.logging.config.file=/config/logging.properties -Dconfig.file=/config/jvb.conf"
+
+                DAEMON=/usr/share/jitsi-videobridge/jvb.sh
+
+                exec s6-setuidgid jvb /bin/bash -c "exec $DAEMON --apis=${JVB_ENABLE_APIS:="none"}"
+
+    
+    d2:
+      path: /etc/cont-init.d/10-config
+      container: jvb
+      mode: 0777
+      raw: true
+      contents: |
+                #!/usr/bin/with-contenv bash
+
+                export LOCAL_ADDRESS=$(ip addr show dev "$(ip route|awk '/^default/ { print $5 }')" | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+
+                if [[ -z $JVB_AUTH_PASSWORD ]]; then
+                    echo 'FATAL ERROR: JVB auth password must be set'
+                    exit 1
+                fi
+
+                OLD_JVB_AUTH_PASSWORD=passw0rd
+                if [[ "$JVB_AUTH_PASSWORD" == "$OLD_JVB_AUTH_PASSWORD" ]]; then
+                    echo 'FATAL ERROR: JVB auth password must be changed, check the README'
+                    exit 1
+                fi
+
+                tpl /defaults/sip-communicator.properties > /config/sip-communicator.properties
+                if [[ -f /config/custom-sip-communicator.properties ]]; then
+                    cat /config/custom-sip-communicator.properties >> /config/sip-communicator.properties
+                fi
+
+                tpl /defaults/jvb.conf > /config/jvb.conf
+
+                if [[ ! -f /config/logging.properties ]]; then
+                    cp /defaults/logging.properties /config
+                fi
+
+                chown -R jvb:jitsi /config
+
+
+    d3:
+      path: /defaults/logging.properties
+      container: jvb
+      mode: 0777
+      raw: true
+      contents: |
+                handlers= java.util.logging.ConsoleHandler
+                java.util.logging.ConsoleHandler.level = ALL
+                java.util.logging.ConsoleHandler.formatter = net.java.sip.communicator.util.ScLogFormatter
+                net.java.sip.communicator.util.ScLogFormatter.programname=JVB
+                .level=INFO
+                org.jitsi.videobridge.xmpp.ComponentImpl.level=FINE
+                # All of the INFO level logs from MediaStreamImpl are unnecessary in the context of jitsi-videobridge.
+                org.jitsi.impl.neomedia.MediaStreamImpl.level=WARNING
+
+
+    d4:
+      path: /defaults/sip-communicator.properties
+      container: jvb
+      mode: 0777
+      raw: true
+      contents: |
+                {{ if .Env.DOCKER_HOST_ADDRESS }}
+                org.ice4j.ice.harvest.NAT_HARVESTER_LOCAL_ADDRESS={{ .Env.LOCAL_ADDRESS }}
+                org.ice4j.ice.harvest.NAT_HARVESTER_PUBLIC_ADDRESS={{ .Env.DOCKER_HOST_ADDRESS }}
+                {{ end }}
+
+    d5:
+      path: /defaults/jvb.conf
+      container: jvb
+      mode: 0777
+      raw: true
+      contents: |
+                {{ $JVB_TCP_PORT := .Env.JVB_TCP_PORT | default "4443" }}
+                {{ $JVB_TCP_MAPPED_PORT := .Env.JVB_TCP_MAPPED_PORT | default $JVB_TCP_PORT }}
+                {{ $PUBLIC_URL_DOMAIN := .Env.PUBLIC_URL | default "https://localhost:8443" | trimPrefix "https://" | trimSuffix "/" -}}
+                {{ $WS_DOMAIN := .Env.JVB_WS_DOMAIN | default $PUBLIC_URL_DOMAIN -}}
+                {{ $WS_SERVER_ID := .Env.JVB_WS_SERVER_ID | default .Env.LOCAL_ADDRESS -}}
+
+                videobridge {
+                    ice {
+                        udp {
+                            port = {{ .Env.JVB_PORT }}
+                        }
+                        tcp {
+                            enabled = {{ not (.Env.JVB_TCP_HARVESTER_DISABLED | default "true" | toBool) }}
+                            port = {{ .Env.JVB_TCP_PORT }}
+                {{ if not (eq $JVB_TCP_PORT $JVB_TCP_MAPPED_PORT) }}
+                            mapped-port = {{ $JVB_TCP_MAPPED_PORT }}
+                {{ end }}
+                        }
+                    }
+                    apis {
+                        xmpp-client {
+                            configs {
+                                shard {
+                                    HOSTNAME = "{{ .Env.XMPP_SERVER }}"
+                                    DOMAIN = "{{ .Env.XMPP_AUTH_DOMAIN }}"
+                                    USERNAME = "{{ .Env.JVB_AUTH_USER }}"
+                                    PASSWORD = "{{ .Env.JVB_AUTH_PASSWORD }}"
+                                    MUC_JIDS = "{{ .Env.JVB_BREWERY_MUC }}@{{ .Env.XMPP_INTERNAL_MUC_DOMAIN }}"
+                                    MUC_NICKNAME = "{{ .Env.HOSTNAME }}"
+                                    DISABLE_CERTIFICATE_VERIFICATION = true
+                                }
+                            }
+                        }
+                    }
+                    stats {
+                        enabled = true
+                    }
+                    websockets {
+                        enabled = true
+                        domain = "{{ $WS_DOMAIN }}"
+                        tls = true
+                        server-id = "{{ $WS_SERVER_ID }}"
+                    }
+                    http-servers {
+                        private { 
+                          host = 0.0.0.0
+                        }
+                        public {
+                            host = 0.0.0.0
+                            port = 9090
+                        }
+                    }
+                }
+
+                ice4j {
+                    harvest {
+                        mapping {
+                            stun {
+                {{ if .Env.JVB_STUN_SERVERS }}
+                                addresses = [ "{{ join "\",\"" (splitList "," .Env.JVB_STUN_SERVERS) }}" ]
+                {{ end }}
+                            }
+                        }
+                    }
+                }
+
+  depends:
+    defines: depends
+    wait-for:
+      runnables:
+        - /jitsi/prosody
+      timeout: 60
+  variables:
+    defines: variables
+    CONFIG:
+      type: string
+      value: "/jitsi-meet-cfg"
+    JVB_PORT:
+      type: int
+      value: 10000
+    JVB_TCP_MAPPED_PORT:
+      type: int
+      value: 8433
+    JVB_TCP_PORT:
+      type: int
+      value: 4443
+    XMPP_DOMAIN:
+      type: string
+      value: <- get-hostname("jitsi/web", "web")
+    XMPP_SERVER:
+      type: string
+      value: <- get-hostname("jitsi/prosody", "prosody")
+    JVB_AUTH_PASSWORD:
+      type: string
+      value: "7b398c7090c615e1dee153e645df0f02"
+
+stack:
+  defines: process-group
+  runnable-list:
+    - /jitsi/prosody
+    - /jitsi/web
+    - /jitsi/jicofo
+    - /jitsi/jvb

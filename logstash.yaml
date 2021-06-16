@@ -1,0 +1,33 @@
+namespace: /elk/base
+
+logstash:
+  defines: runnable
+  containers:
+    defines: containers
+    logstash:
+      image: docker.elastic.co/logstash/logstash
+      image-tag: "7.9.0"
+      environment:
+        - 'xpack.monitoring.enabled=false'
+        - 'http.host=0.0.0.0'
+        - <- `LS_JAVA_OPTS=${jvm-options}`
+        - <- `monitoring.elasticsearch.hosts=http://${elasticsearch-host}:${elasticsearch-port}`
+      ports:
+        - "5044:5044/tcp"
+        - "5044:5044/udp"
+        - <- `${port}:${port}`
+
+  variables:
+    defines: variables
+    port:
+      type: int
+      value: 9600
+    elasticsearch-host:
+      type: string
+      value: "elasticsearch"
+    elasticsearch-port:
+      type: string
+      value: 9200
+    jvm-options:
+      type: string
+      value: -Xmx256m -Xms256m

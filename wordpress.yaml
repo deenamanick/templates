@@ -1,0 +1,78 @@
+namespace: /wordpress
+
+mysql:
+    defines: runnable
+    inherits: /mysql/v8.0
+    containers:
+        defines: containers
+        mysql:
+            environment:
+                - <- `MYSQL_ROOT_PASSWORD=${mysql_root_password}`
+                - <- `MYSQL_USER=${mysql_user}`
+                - <- `MYSQL_PASSWORD=${mysql_password}`
+                - <- `MYSQL_DATABASE=${mysql_database}`
+    variables:
+        mysql_root_password: password
+        mysql_user: wordpress
+        mysql_password: password
+        mysql_database: wordpress
+
+wordpress:
+    defines: runnable
+    metadata:
+        defines: metadata
+        name: WordPress
+        description: WordPress is a free and open-source content management system written in PHP and paired with a MySQL or MariaDB database.
+        tags: cms
+        website: https://www.wordpress.com/
+        source: https://github.com/WordPress/WordPress
+        publisher: "monk.io"
+        icon: https://assets.monk.io/icons/WordPress_blue_logo.svg.png
+        email: maciej@monk.io    
+    containers:
+        defines: containers
+        wordpress:
+            image: wordpress
+            image-tag: <- `${image-tag}`
+            ports:
+                - 8080:80
+            environment:
+                - <- `WORDPRESS_DB_NAME=${wordpress_db_name}`
+                - <- `WORDPRESS_TABLE_PREFIX=${wordpress_table_prefix}`
+                - <- `WORDPRESS_DB_HOST=${wordpress_db_host}`
+                - <- `WORDPRESS_DB_USER=${wordpress_db_user}`
+                - <- `WORDPRESS_DB_PASSWORD=${wordpress_db_password}`
+    variables:
+        defines: variables
+        image-tag:
+            type: string
+            value: latest        
+        wordpress_db_name:
+            type: string
+            value: wordpress
+        wordpress_table_prefix:
+            type: string
+            value: wp_
+        wordpress_db_host:
+            type: string
+            value: <- get-hostname("wordpress/mysql", "mysql") `:3306` concat-all
+        wordpress_db_user:
+            type: string
+            value: wordpress
+        wordpress_db_password:
+            type: string
+            value: password
+
+latest:
+    defines: runnable
+    inherits: /wordpress/wordpress
+    version: latest
+    variables:
+        image-tag: latest
+
+system:
+    defines: process-group
+    version: latest
+    runnable-list:
+        - /wordpress/mysql
+        - /wordpress/latest

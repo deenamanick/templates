@@ -1,0 +1,140 @@
+namespace: /apache-cassandra
+
+common:
+  version: 3.11.7
+  metadata:
+    defines: metadata
+    name: Apache Cassandra
+    description: Apache Cassandra is an open-source distributed storage system.
+    tags: nosql, database, columnar, distributed
+    website: https://cassandra.apache.org
+    source: https://github.com/apache/cassandra
+    publisher: "monk.io"
+    icon: https://assets.monk.io/icons/1280px-Cassandra_logo.svg.png
+    email: maciej@monk.io
+  variables:
+    defines: variables
+    image-tag:
+      type: string
+      value: 3.11.7
+    data-dir:
+      type: string
+      value: "/var/lib/cassandra"
+    node-name:
+      type: string
+      value: "cassandra"
+    host:
+      type: string
+      value: "0.0.0.0"
+    host-volume-data-dir:
+      type: string
+      value: <- `${moncc-volume-path}/${node-name}/data`
+    jmx-port:
+      type: int
+      value: 7199
+    inter-comm-port:
+      type: int
+      value: 7000
+    tls-inter-comm-port:
+      type: int
+      value: 7001
+    thrift-client-port:
+      type: int
+      value: 9160
+    cql-client-port:
+      type: int
+      value: 9042
+    cql-client-exposed-port:
+      type: int
+      value: 9042
+    webui-port:
+      type: int
+      value: 8888
+    seed-hostname:
+      type: string
+      value: ""
+    cluster-name:
+      type: string
+      value: "Test Cluster"
+    datacenter-name:
+      type: string
+      value: "datacenter1"
+    endpoint-snitch:
+      type: string
+      value: ""
+  containers:
+    defines: containers
+    cassandra:
+      image: docker.io/cassandra
+      image-tag: <- `${image-tag}`
+      paths:
+        - <- `${host-volume-data-dir}:${data-dir}`
+      ports:
+        - <- `${host}:${cql-client-exposed-port}:${cql-client-port}/tcp`
+        #- <- `${host}:${jmx-port}:${jmx-port}/tcp`
+        #- <- `${host}:${inter-comm-port}:${inter-comm-port}/tcp`
+        #- <- `${host}:${tls-inter-comm-port}:${tls-inter-comm-port}/tcp`
+        #- <- `${host}:${thrift-client-port}:${thrift-client-port}/tcp`
+        #- <- `${host}:${webui-port}:${webui-port}/tcp`
+
+cassandra-seed:
+  defines: runnable
+  inherits: ./common
+  containers:
+    cassandra:
+      environment:
+        - <- `CASSANDRA_SEEDS=${seed-hostname}`
+        - <- `CASSANDRA_CLUSTER_NAME=${cluster-name}`
+        - <- `CASSANDRA_DC=${datacenter-name}`
+      # - <- `CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch`
+  variables:
+    seed-hostname: <- get-hostname("cassandra-seed", "cassandra")
+    node-name: "cassandra-seed"
+
+cassandra1:
+  defines: runnable
+  inherits: ./common
+  containers:
+    cassandra:
+      environment:
+        - <- `CASSANDRA_SEEDS=${seed-hostname}`
+        - <- `CASSANDRA_CLUSTER_NAME=${cluster-name}`
+        - <- `CASSANDRA_DC=${datacenter-name}`
+      #  - <- `CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch`
+  variables:
+    cql-client-exposed-port: 19042
+    seed-hostname: <- get-hostname("apache-cassandra/cassandra-seed", "cassandra")
+    node-name: "cassandra1"
+
+cassandra2:
+  defines: runnable
+  inherits: ./common
+  containers:
+    cassandra:
+      environment:
+        - <- `CASSANDRA_SEEDS=${seed-hostname}`
+        - <- `CASSANDRA_CLUSTER_NAME=${cluster-name}`
+        - <- `CASSANDRA_DC=${datacenter-name}`
+      #  - <- `CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch`
+  variables:
+    cql-client-exposed-port: 29042
+    seed-hostname: <- get-hostname("apache-cassandra/cassandra-seed", "cassandra")
+    node-name: "cassandra2"
+
+cassandra-cluster:
+  metadata:
+    defines: metadata
+    name: Apache Cassandra
+    description: Apache Cassandra is an open-source distributed storage system.
+    tags: nosql, database, columnar, distributed
+    website: https://cassandra.apache.org
+    source: https://github.com/apache/cassandra
+    publisher: "monk.io"
+    icon: https://assets.monk.io/icons/1280px-Cassandra_logo.svg.png
+    email: maciej@monk.io
+  defines: process-group
+  version: 3.11.7
+  runnable-list:
+    - /apache-cassandra/cassandra-seed
+    - /apache-cassandra/cassandra1
+    - /apache-cassandra/cassandra2

@@ -1,0 +1,34 @@
+namespace: /chainlink
+
+chainlink-db:
+  defines: runnable
+  inherits: postgres/12-alpine
+
+chainlink-1:
+  defines: runnable
+  inherits: /chainlink/latest
+  variables:
+    db-host: <- get-hostname("chainlink/chainlink-db", "postgres")
+
+chainlink-2:
+  defines: runnable
+  inherits: /chainlink/latest
+  variables:
+    db-host: <- get-hostname("chainlink/chainlink-db", "postgres")
+    rpc-port: 6689
+
+system:
+  defines: process-group
+  metadata:
+    defines: metadata
+    name: Chainlink
+    description: Your smart contracts connected to real world data events and payments.
+    tags: blockchain,ethereum,data,chainlink
+    website: https://chain.link
+    source: https://github.com/smartcontractkit/chainlink
+    publisher: monk.io
+    icon: https://assets.monk.io/icons/chainlink-combo-logo-1035x400.png
+  runnable-list:
+    - /chainlink/chainlink-db
+    - /chainlink/chainlink-1
+    - /chainlink/chainlink-2

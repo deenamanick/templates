@@ -1,0 +1,99 @@
+namespace: /ghost
+
+common:
+  defines: runnable
+  version: 0.0.1
+  metadata:
+    defines: metadata
+    name: Ghost
+    description: Ghost is a free and open source blogging platform written in JavaScript
+    tags: self hosted, blogging, platform
+    website: https://www.ghost.org/
+    source: https://github.com/TryGhost/Ghost
+    publisher: "monk.io"
+    icon: https://assets.monk.io/icons/ghost-logo-squircle.svg
+    email: maciej@monk.io
+  containers:
+    defines: containers
+    ghost:
+      image: docker.io/ghost
+      image-tag: <- `${image-tag}`
+      # bash: <- `/bin/sh /root/r.sh`
+      ports:
+        - <- `0.0.0.0:${rpc-port}:2368`
+      environment:
+        - <- `url=http://localhost:${rpc-port}`
+        - <- `database__client=mysql`
+        - <- `database__connection__host=${mysql-host}`
+        - <- `database__connection__user=${mysql-user}`
+        - <- `database__connection__password=${mysql-password}`
+        - <- `database__connection__database=${mysql-database}`
+  variables:
+    defines: variables
+    image-tag:
+      type: string
+      value: latest 
+    rpc-port:
+      type: int
+      value: 8080
+    mysql-host:
+      type: string
+      value: localhost
+    mysql-user:
+      type: string
+      value: ghost
+    mysql-password:
+      type: string
+      value: ghost
+    mysql-database:
+      type: string
+      value: ghost
+  files:
+    defines: files
+    r1:
+      path: /root/r.sh
+      container: ghost
+      contents: "while true; do sleep 5; date; done"
+
+latest:
+  defines: runnable
+  inherits: ./common
+  version: latest
+  variables:
+    image-tag: latest
+
+ghost-client:
+  defines: runnable
+  inherits: ./latest
+  variables:
+    rpc-port: 8080
+    mysql-host: <- get-hostname("ghost/mysql", "mysql")
+    mysql-user: ghost
+    mysql-password: ghost
+    mysql-database: ghost
+
+mysql:
+  defines: runnable
+  inherits: /mysql/v5.7
+  variables:
+    mysql_root_password: rootpass2
+    mysql_user: ghost
+    mysql_password: ghost
+    mysql_database: ghost
+
+system:
+  defines: process-group
+  version: latest
+  metadata:
+    defines: metadata
+    name: Ghost
+    description: Ghost is a free and open source blogging platform written in JavaScript
+    tags: self hosted, blogging, platform
+    website: https://www.ghost.org/
+    source: https://github.com/TryGhost/Ghost
+    publisher: "monk.io"
+    icon: https://assets.monk.io/icons/ghost-logo-squircle.svg
+    email: maciej@monk.io
+  runnable-list:
+    - /ghost/mysql
+    - /ghost/ghost-client

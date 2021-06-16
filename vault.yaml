@@ -1,0 +1,56 @@
+namespace: /vault
+
+latest:
+  defines: runnable
+  metadata:
+    defines: metadata
+    name: Vault
+    description: Vault is a tool for securely accessing secrets via a unified interface and tight access control.
+    tags: secrets, security
+    website: https://www.vaultproject.io/
+    source: https://github.com/hashicorp/vault
+    publisher: "monk.io"
+    icon: https://assets.monk.io/icons/vault.png
+  containers:
+    defines: containers
+    vault:
+      image: vault:latest
+      paths:
+        - <- `${volume-data}/file:/vault/file`
+        - <- `${volume-data}/logs:/vault/logs`
+      entrypoint: ""
+      environment:
+        - <- `VAULT_DEV_ROOT_TOKEN_ID=${root-token}`
+  actions:
+    defines: actions
+    put:
+      description: Put value
+      arguments:
+        path:
+          type: string
+          description: Value path
+        key:
+          type: string
+          description: Value key
+        value:
+          type: string
+          description: Value itself
+      code: exec("vault", "/bin/sh", "-c", `VAULT_TOKEN=${root-token} vault kv put -address=http://127.0.0.1:8200 ${args["path"]} ${args["key"]}='${args["value"]}'`)
+    get:
+      description: Get value
+      arguments:
+        path:
+          type: string
+          description: Value path
+        key:
+          type: string
+          description: Value key
+      code: exec("vault", "/bin/sh", "-c", `VAULT_TOKEN=${root-token} vault kv get -address=http://127.0.0.1:8200 -field=${args["key"]} ${args["path"]}`) trim
+  variables:
+    defines: variables
+    volume-data:
+      type: string
+      value: <- `${moncc-volume-path}/vault`
+    root-token:
+      type: string
+      value: "myroot"

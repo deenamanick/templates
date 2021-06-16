@@ -1,0 +1,22 @@
+namespace: /elk/base
+
+kibana:
+  defines: runnable
+  containers:
+    defines: containers
+    kibana:
+      image: docker.elastic.co/kibana/kibana
+      image-tag: "7.9.0"
+      ports:
+        - <- `${port}:${port}`
+      environment:
+        - <- `ELASTICSEARCH_HOSTS=http://${elasticsearch-hosts}:9200`
+
+  variables:
+    defines: variables
+    port:
+      type: int
+      value: 5601
+    elasticsearch-hosts:
+      type: string
+      value: "elasticsearch"

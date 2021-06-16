@@ -1,0 +1,15 @@
+namespace: /hardhat
+
+common:
+  defines: runnable
+  containers:
+    defines: containers
+    hardhat:
+      image: whitenoi5/hardhat-fork:latest
+      entrypoint: npx hardhat node --fork https://mainnet.infura.io/v3/a2bdcdbe203942249f08666b4f225680
+      ports:
+        - 0.0.0.0:8545:8545
+
+latest:
+  defines: runnable
+  inherits: ./common
