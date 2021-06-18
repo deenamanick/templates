@@ -1,4 +1,4 @@
-namespace: /gitlab2
+namespace: /gitlab
 
 common:
   metadata:
@@ -15,14 +15,14 @@ common:
       image: docker.io/gitlab/gitlab-ce
       image-tag: latest
       ports:
-        - <- `0.0.0.0:${ssh-port}:22`
+        #- <- `0.0.0.0:${ssh-port}:22`
         - <- `0.0.0.0:${http-port}:80`
         - <- `0.0.0.0:${https-port}:443`
-        - <- `0.0.0.0:${registry-port}:5050`
+        - <- `0.0.0.0:${registry-port}:${registry-port}`
       paths:
-        - <- `${local-config-volume}:${container-config-volume}`
-        - <- `${local-logs-volume}:${container-logs-volume}`
-        - <- `${local-data-volume}:${container-data-volume}`
+        - <- `${local-config-volume}:/etc/gitlab`
+        - <- `${local-logs-volume}:/etc/log/gitlab`
+        - <- `${local-data-volume}:/var/opt/gitlab`
       environment:
         - <- `GITLAB_ROOT_PASSWORD=${gitlab-root-password}`
         - <- `GITLAB_OMNIBUS_CONFIG=${gitlab-omnibus-config}`
@@ -30,7 +30,7 @@ common:
         - <- `GITLAB_EXTERNAL_URL=${gitlab-external-url}`
         - <- `GITLAB_REGISTRY_EXTERNAL_URL=${gitlab-registry-external-url}`
         - <- `ENABLE_LETSENCRYPT=${enable-letsencrypt}`
-        - <- `EXTERNAL_URL=https://git.flyautomation.io:8080`
+        - <- `EXTERNAL_URL=${gitlab-external-url}`
   variables:
     defines: variables
     ssh-port:
@@ -50,28 +50,19 @@ common:
       value: 1
     gitlab-external-url:
       type: string
-      value: http://git.flyautomation.io:8080
+      value: <- `http://${gitlab-public-ip}:${http-port}`
     gitlab-registry-external-url:
       type: string
-      value: http://git.flyautomation.io:5050
+      value: <- `http://${gitlab-public-ip}:${registry-port}`
     local-config-volume:
       type: string
-      value: <- `${moncc-volume-path}/gitlab-config`
+      value: <- `${monk-volume-path}/gitlab-config`
     local-logs-volume:
       type: string
-      value: <- `${moncc-volume-path}/gitlab-logs`
+      value: <- `${monk-volume-path}/gitlab-logs`
     local-data-volume:
       type: string
-      value: <- `${moncc-volume-path}/gitlab-data`
-    container-config-volume:
-      type: string
-      value: /etc/gitlab
-    container-logs-volume:
-      type: string
-      value: /var/log/gitlab
-    container-data-volume:
-      type: string
-      value: /var/opt/gitlab
+      value: <- `${monk-volume-path}/gitlab-data`
     gitlab-root-password:
       type: string
       value: miani123
@@ -92,14 +83,14 @@ common:
         env_external_url = ENV['GITLAB_EXTERNAL_URL'];
         nginx['listen_port'] = 80;
         nginx['listen_https'] = false;
-        external_url 'http://34.72.137.131:8080';
+        external_url env_external_url;
 
         # Setup Registry
         env_registry_external_url = ENV['GITLAB_REGISTRY_EXTERNAL_URL'];
         registry['enable'] = true;
         registry_nginx['listen_port'] = 4567;
         registry_nginx['listen_https'] = false;
-        registry_external_url 'http://34.72.137.131:5050';
+        registry_external_url env_registry_external_url;
 
 runner:
   defines: runnable
@@ -115,30 +106,56 @@ runner:
     defines: containers
     runner:
       image: docker.io/gitlab/gitlab-runner
-      image-tag: latest
-      paths:
-        - <- `get-hostname("gitlab/runner", "runner"):/etc/gitlab-runner:Z`
-        - <- `${docker-sock}:${docker-sock}`
+      image-tag: alpine
   variables:
     defines: variables
     docker-sock:
       type: string
       value: /var/run/docker.sock
+    gitlab-hostname:
+      type: string
+      value: <- get-hostname("gitlab/gitlab-ce", "app")
+  actions:
+    defines: actions
+    register:
+      description: "Register the runner with gitlab"
+      arguments:
+        token:
+          type: string
+          description: "Gitlab registration token"
+      code: exec("runner", "/bin/bash", "-c", `gitlab-runner register --non-interactive --url "https://${gitlab-hostname}:8080/" --registration-token "${args['token']}" --executor "docker" --docker-image alpine:latest --description "docker-runner" --tag-list "docker,monk" --run-untagged="true" --locked="false" --access-level="not_protected"`)
 
 gitlab-ce:
   defines: runnable
-  inherits: gitlab2/common
+  inherits: gitlab/common
 
 runner-1:
   defines: runnable
-  inherits: gitlab2/runner
+  inherits: gitlab/runner
+  containers:
+    runner:
+      paths:
+        - <- `${monk-volume-path}/gitlab-runner-1:/etc/gitlab-runner:Z`
+        - <- `${docker-sock}:${docker-sock}`
 
-# runner-2:
-#   defines: runnable
-#   inherits: gitlab/runner
+runner-2:
+  defines: runnable
+  inherits: gitlab/runner
+  containers:
+    runner:
+      paths:
+        - <- `${monk-volume-path}/gitlab-runner-2:/etc/gitlab-runner:Z`
+        - <- `${docker-sock}:${docker-sock}`
 
-gitlab-ce-2runners:
+gitlab-ce-1-runner:
   defines: process-group
   runnable-list:
-    - /gitlab2/gitlab-ce
-    - /gitlab2/runner-1
+    - /gitlab/gitlab-ce
+    - /gitlab/runner-1
+
+gitlab-ce-2-runner:
+  defines: process-group
+  runnable-list:
+    - /gitlab/gitlab-ce
+    - /gitlab/runner-1
+    - /gitlab/runner-2
